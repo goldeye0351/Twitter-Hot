@@ -1,0 +1,59 @@
+const { Pool } = require('pg');
+
+// 从环境变量获取数据库连接信息
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
+
+// 创建数据表（如果不存在）
+const initTable = async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS daily_tweets (
+        date VARCHAR(10) PRIMARY KEY,
+        urls JSONB NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Table initialized successfully');
+  } catch (error) {
+    console.error('Error initializing table:', error);
+  }
+};
+
+// 初始化表
+initTable();
+
+module.exports = async (req, res) => {
+  if (req.method !== 'GET') {
+    res.status(405).end();
+    return;
+  }
+
+  const date = (req.query && req.query.date) || '';
+  
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    res.status(400).json({ error: 'bad_date' });
+    return;
+  }
+
+  try {
+    const result = await pool.query('SELECT urls FROM daily_tweets WHERE date = $1', [date]);
+    
+    if (result.rows.length > 0) {
+      const urls = result.rows[0].urls;
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ date, urls });
+    } else {
+      // 如果没有找到数据，返回空数组
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ date, urls: [] });
+    }
+  } catch (error) {
+    console.error('Database query error:', error);
+    res.status(500).json({ error: 'database_error' });
+  }
+};

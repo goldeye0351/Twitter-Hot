@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>发布后台 | Twitter 热门监控</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .admin-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .admin-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 0.75rem;
+            color: var(--text-primary);
+            font-family: inherit;
+        }
+
+        textarea.form-control {
+            height: 300px;
+            font-family: monospace;
+            resize: vertical;
+        }
+
+        .btn-block {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .status-message {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            display: none;
+        }
+
+        .status-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .preview-list {
+            margin-top: 1rem;
+            border-top: 1px solid var(--border-color);
+            padding-top: 1rem;
+        }
+
+        .preview-item {
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="admin-container">
+        <header class="header">
+            <h1>🚀 内容发布后台</h1>
+            <p class="subtitle">Twitter 热门内容每日更新</p>
+        </header>
+
+        <div class="admin-card">
+            <div class="form-group">
+                <label for="publishDate">发布日期</label>
+                <input type="date" id="publishDate" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label for="rawContent">原始内容 (粘贴 Grok 文本)</label>
+                <textarea id="rawContent" class="form-control" placeholder="在此粘贴包含 Twitter 链接的文本..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <div id="previewArea" style="display: none;">
+                    <label>识别到的链接 (<span id="linkCount">0</span> 条)</label>
+                    <div id="linkList" class="preview-list"></div>
+                </div>
+            </div>
+
+            <button id="publishBtn" class="primary-btn btn-block">发布更新</button>
+
+            <div id="statusMsg" class="status-message"></div>
+        </div>
+
+        <div style="text-align: center; margin-top: 2rem;">
+            <a id="frontLink" href="index.html" target="_blank" class="content-link">查看前台效果 &rarr;</a>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // Admin specific logic
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set default date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('publishDate').value = today;
+            const frontLink = document.getElementById('frontLink');
+            frontLink.href = 'index.html?date=' + today;
+
+            const textarea = document.getElementById('rawContent');
+            const publishBtn = document.getElementById('publishBtn');
+            const statusMsg = document.getElementById('statusMsg');
+
+            // Auto-detect links on input
+            textarea.addEventListener('input', () => {
+                const urls = extractUrls(textarea.value);
+                updatePreview(urls);
+            });
+
+            document.getElementById('publishDate').addEventListener('change', () => {
+                const d = document.getElementById('publishDate').value;
+                if (d) frontLink.href = 'index.html?date=' + d;
+            });
+
+            // Publish action
+            publishBtn.addEventListener('click', async () => {
+                const date = document.getElementById('publishDate').value;
+                const urls = extractUrls(textarea.value);
+                const d = (date || '').trim();
+                const okDate = /^\d{4}-\d{2}-\d{2}$/.test(d);
+
+                if (!date) {
+                    showStatus('请选择发布日期', 'error');
+                    return;
+                }
+
+                if (!okDate) {
+                    showStatus('发布日期格式需为 YYYY-MM-DD', 'error');
+                    return;
+                }
+
+                if (urls.length === 0) {
+                    showStatus('未检测到任何 Twitter 链接', 'error');
+                    return;
+                }
+
+                const result = await saveDailySnapshot(d, urls);
+                if (result && result.remoteSaved) {
+                    showStatus(`✅ 已同步服务器并发布 ${d} 的 ${urls.length} 条内容`, 'success');
+                } else {
+                    showStatus(`⚠️ 已更新本地缓存，但服务器存储未生效`, 'error');
+                }
+
+                // Optional: Clear input
+                // textarea.value = '';
+            });
+        });
+
+        function updatePreview(urls) {
+            const previewArea = document.getElementById('previewArea');
+            const linkCount = document.getElementById('linkCount');
+            const linkList = document.getElementById('linkList');
+
+            if (urls.length > 0) {
+                previewArea.style.display = 'block';
+                linkCount.textContent = urls.length;
+                linkList.innerHTML = urls.map((url, i) => `
+                    <div class="preview-item">
+                        <span>#${i + 1}</span>
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:10px;">${url}</span>
+                    </div>
+                `).join('');
+            } else {
+                previewArea.style.display = 'none';
+            }
+        }
+
+        function showStatus(msg, type) {
+            const el = document.getElementById('statusMsg');
+            el.textContent = msg;
+            el.style.display = 'block';
+            el.className = 'status-message ' + (type === 'success' ? 'status-success' : '');
+        }
+    </script>
+</body>
+
+</html>
