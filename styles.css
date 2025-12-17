@@ -1,48 +1,57 @@
 :root {
-    /* Color Palette - 黑白灰 */
-    --bg-primary: #050505;
-    --bg-secondary: #0f0f0f;
-    --bg-card: rgba(255, 255, 255, 0.04);
-    --bg-card-hover: rgba(255, 255, 255, 0.08);
+    /* Color Palette - 纯黑白灰系统 */
+    --bg-primary: #000000;
+    --bg-secondary: #0a0a0a;
+    --bg-tertiary: #141414;
+    --bg-card: rgba(255, 255, 255, 0.03);
+    --bg-card-hover: rgba(255, 255, 255, 0.06);
 
-    --text-primary: #f5f5f5;
-    --text-secondary: #d6d6d6;
-    --text-muted: #a0a0a0;
+    --text-primary: #ffffff;
+    --text-secondary: #cccccc;
+    --text-muted: #999999;
+    --text-subtle: #666666;
 
-    --accent-primary: #f5f5f5;
-    --accent-secondary: #cfcfcf;
-    --accent-gradient: linear-gradient(135deg, #ffffff 0%, #b5b5b5 100%);
-    --accent-primary-rgb: 245, 245, 245;
+    --accent-primary: #ffffff;
+    --accent-secondary: #d0d0d0;
+    --accent-hover: #f0f0f0;
+    --accent-gradient: linear-gradient(135deg, #ffffff 0%, #c0c0c0 100%);
+    --accent-primary-rgb: 255, 255, 255;
 
-    --bg-gradient: radial-gradient(ellipse at top, rgba(255, 255, 255, 0.04) 0%, transparent 60%);
+    --bg-gradient: radial-gradient(ellipse at top, rgba(255, 255, 255, 0.03) 0%, transparent 60%);
 
-    --color-likes: #f5f5f5;
-    --color-views: #dcdcdc;
-    --color-posts: #b5b5b5;
-    --color-time: #8c8c8c;
+    --gray-100: #f5f5f5;
+    --gray-200: #e0e0e0;
+    --gray-300: #cccccc;
+    --gray-400: #b0b0b0;
+    --gray-500: #909090;
+    --gray-600: #707070;
+    --gray-700: #505050;
+    --gray-800: #303030;
+    --gray-900: #1a1a1a;
 
-    --border-color: rgba(255, 255, 255, 0.08);
-    --border-hover: rgba(255, 255, 255, 0.16);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --border-hover: rgba(255, 255, 255, 0.2);
+    --border-active: rgba(255, 255, 255, 0.3);
 
-    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.35);
-    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.45), 0 8px 16px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.55), 0 16px 32px rgba(0, 0, 0, 0.6);
-    --shadow-glow: 0 0 20px rgba(255, 255, 255, 0.08);
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.6), 0 8px 16px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.7), 0 16px 32px rgba(0, 0, 0, 0.6);
+    --shadow-glow: 0 0 20px rgba(255, 255, 255, 0.1);
 
-    /* Spacing - 更宽松 */
+    /* Spacing */
     --spacing-xs: 0.5rem;
     --spacing-sm: 1rem;
     --spacing-md: 1.5rem;
     --spacing-lg: 2.5rem;
     --spacing-xl: 4rem;
 
-    /* Border Radius - 更大的圆角 */
-    --radius-sm: 10px;
-    --radius-md: 14px;
-    --radius-lg: 20px;
-    --radius-xl: 28px;
+    /* Border Radius */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
 
-    /* Transitions - 更流畅 */
+    /* Transitions */
     --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
@@ -64,6 +73,48 @@ body {
     padding: 0px;
 }
 
+/* ============================================
+   SCROLLBAR STYLING - Minimalist Black & White
+   ============================================ */
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) rgba(0, 0, 0, 0.3);
+}
+
+/* WebKit Browsers (Chrome, Safari, Edge) */
+*::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    margin: 2px;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.12) 100%);
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.05);
+    transition: all var(--transition-fast);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.2) 100%);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
+}
+
+*::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.28) 100%);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
+}
+
 .container {
     max-width: 1200px;
     margin: 0 auto;
@@ -77,7 +128,7 @@ body {
     left: 0;
     right: 0;
     background: rgba(10, 10, 10, 0.95);
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border-color);
     z-index: 1000;
     transform: translateY(-100%);
@@ -172,8 +223,8 @@ body {
     top: 0;
     left: 0;
     right: 0;
-    background: rgba(15, 15, 35, 0.95);
-    backdrop-filter: blur(8px);
+    background: rgba(10, 10, 10, 0.95);
+    backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border-color);
     z-index: 1000;
     padding: 0.75rem 0;
@@ -215,6 +266,11 @@ body {
     align-items: center;
     gap: 1.5rem;
     min-width: 0;
+}
+
+.filter-tool-link:hover {
+    background: var(--bg-card);
+    color: var(--text-primary);
 }
 
 body {
@@ -264,23 +320,23 @@ body {
 }
 
 .stat-icon.likes {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--color-likes);
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--gray-100);
 }
 
 .stat-icon.views {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--color-views);
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--gray-200);
 }
 
 .stat-icon.posts {
     background: rgba(255, 255, 255, 0.06);
-    color: var(--color-posts);
+    color: var(--gray-300);
 }
 
 .stat-icon.time {
     background: rgba(255, 255, 255, 0.04);
-    color: var(--color-time);
+    color: var(--gray-400);
 }
 
 .stat-content {
@@ -306,7 +362,7 @@ body {
 
 /* Hot Topic */
 .hot-topic {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0) 100%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0) 100%);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: var(--radius-lg);
     padding: var(--spacing-md);
@@ -318,13 +374,13 @@ body {
 }
 
 .hot-badge {
-    background: linear-gradient(135deg, #ffffff 0%, #7a7a7a 100%);
+    background: linear-gradient(135deg, #ffffff 0%, #b0b0b0 100%);
     color: var(--bg-primary);
     padding: 6px 16px;
     border-radius: 20px;
     font-size: 0.875rem;
     font-weight: 600;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .topic-text {
@@ -358,8 +414,8 @@ body {
 
 .date-separator-line {
     flex: 1;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--border-color) 20%, var(--border-color) 80%, transparent);
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15) 20%, rgba(255, 255, 255, 0.15) 80%, transparent);
 }
 
 .date-separator-text {
@@ -369,9 +425,9 @@ body {
     white-space: nowrap;
     padding: 0.5rem 1.5rem;
     background: var(--bg-secondary);
-    border: 2px solid var(--border-color);
+    border: 1px solid var(--border-color);
     border-radius: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
 /* Mobile date separator adjustments */
@@ -603,12 +659,13 @@ body {
     position: absolute;
     top: 8px;
     right: 8px;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.8);
     color: var(--text-primary);
     font-size: 0.7rem;
     font-weight: 600;
     padding: 3px 8px;
     border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .gallery-icon-group {
@@ -660,12 +717,14 @@ body {
 }
 
 .gallery-icon-button.copied {
-    background: rgba(255, 255, 255, 0.75);
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(255, 255, 255, 0.3);
 }
 
 .gallery-icon-button.copy-failed {
-    background: rgba(0, 0, 0, 0.75);
+    background: rgba(100, 100, 100, 0.8);
     color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
 .gallery-copy-icon {
@@ -742,20 +801,26 @@ body {
     flex: 1;
     overflow-x: auto;
     overflow-y: auto;
-    scroll-snap-type: x mandatory;
+    scroll-snap-type: none;
+    /* 暂时禁用 snap，避免干扰初始定位 */
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
     scrollbar-color: rgba(var(--accent-primary-rgb, 255, 255, 255), 0.5) transparent;
     position: relative;
     border-radius: var(--radius-md);
-    background: transparent; /* 移除背景色 */
-    display: flex; /* 添加 flex 布局 */
-    justify-content: center; /* 单图时居中 */
-    align-items: flex-start; /* 从顶部开始对齐 */
+    background: transparent;
+    /* 移除背景色 */
+    display: flex;
+    /* 添加 flex 布局 */
+    justify-content: flex-start;
+    /* 从左开始显示 */
+    align-items: center;
+    /* 垂直居中 */
 }
 
 .viewer-scroll-container::-webkit-scrollbar {
-    height: 6px; /* 更细的滚动条 */
+    height: 6px;
+    /* 更细的滚动条 */
 }
 
 .viewer-scroll-container::-webkit-scrollbar-track {
@@ -776,26 +841,33 @@ body {
 .viewer-images-track {
     display: flex;
     gap: 1rem;
-    padding: 0.5rem; /* 减少 padding */
+    padding: 0.5rem;
+    /* 减少 padding */
     min-height: 400px;
-    justify-content: center; /* 单图时居中 */
-    flex-shrink: 0; /* 防止收缩 */
+    justify-content: flex-start;
+    /* 从左开始排列 */
+    align-items: center;
+    /* 垂直居中 */
+    flex-shrink: 0;
+    /* 防止收缩 */
 }
 
 /* 单个图片项 */
 .viewer-image-item {
     flex-shrink: 0;
     width: auto;
-    max-width: 90vw;
+    max-width: 85vw;
+    /* 减小最大宽度，避免图片过宽 */
     min-height: 400px;
     max-height: 70vh;
     display: flex;
     align-items: center;
     justify-content: center;
     position: relative;
-    scroll-snap-align: center;
+    scroll-snap-align: start;
     border-radius: var(--radius-md);
-    background: transparent; /* 移除背景 */
+    background: transparent;
+    /* 移除背景 */
 }
 
 .viewer-image-loading {
@@ -804,7 +876,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.05); /* 更淡的加载背景 */
+    background: rgba(0, 0, 0, 0.05);
+    /* 更淡的加载背景 */
 }
 
 .viewer-image {
@@ -875,9 +948,11 @@ body {
     color: var(--accent-primary);
     text-decoration: none;
     font-weight: 600;
+    transition: opacity var(--transition-fast);
 }
 
 .viewer-link:hover {
+    opacity: 0.8;
     text-decoration: underline;
 }
 
@@ -967,6 +1042,7 @@ body.viewer-open {
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
+    transition: all var(--transition-fast);
 }
 
 .date-tab:first-child {
@@ -978,13 +1054,16 @@ body.viewer-open {
 }
 
 .date-tab:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.08);
     color: var(--text-primary);
+    border-color: var(--border-color);
 }
 
 .date-tab.active {
-    background: var(--accent-primary);
+    background: linear-gradient(135deg, #ffffff 0%, #d0d0d0 100%);
     color: var(--bg-primary);
+    border-color: transparent;
+    font-weight: 600;
 }
 
 .date-nav-card {
@@ -1283,20 +1362,67 @@ body.viewer-open {
     min-height: 200px !important;
 }
 
-/* Scrollbar Styling */
-::-webkit-scrollbar {
-    width: 10px;
-}
 
-::-webkit-scrollbar-track {
+/* Copy Day Button */
+.copy-day-btn {
     background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    padding: 0;
+    margin-left: 0.5rem;
 }
 
-::-webkit-scrollbar-thumb {
-    background: var(--bg-card);
-    border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb:hover {
+.copy-day-btn:hover {
     background: var(--bg-card-hover);
+    color: var(--text-primary);
+    border-color: var(--border-hover);
+    transform: translateY(-1px);
+}
+
+.copy-day-btn:active {
+    transform: translateY(0);
+}
+
+.copy-day-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.copy-day-btn.generating {
+    cursor: wait;
+    opacity: 0.7;
+    animation: pulse 1.5s infinite;
+}
+
+.copy-day-btn.success {
+    color: #10b981;
+    border-color: rgba(16, 185, 129, 0.3);
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.copy-day-btn.error {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+
+    100% {
+        opacity: 1;
+    }
 }

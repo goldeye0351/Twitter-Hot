@@ -138,68 +138,124 @@ function renderContent(append = false) {
     }
 }
 
-// Render Standard Tweet List (Masonry) - Progressive rendering
+// Render Standard Tweet List (Masonry) - Optimized for fast rendering
 function renderTweetList(container, append = false, startIndex = 0, dateLabel = null) {
     // Create new masonry grid for each day if appending
     let masonryContainer;
 
     if (append && dateLabel) {
-        // Add date separator
+        // Create wrapper for the day section
+        const daySection = document.createElement('div');
+        daySection.className = 'day-section';
+        container.appendChild(daySection);
+
+        // Add date separator to wrapper
         const separator = createDateSeparator(dateLabel);
-        container.appendChild(separator);
+        daySection.appendChild(separator);
 
         // Create new masonry grid for this day
         masonryContainer = document.createElement('div');
         masonryContainer.className = 'masonry-grid';
-        container.appendChild(masonryContainer);
+        daySection.appendChild(masonryContainer);
     } else if (append) {
         // Continue with existing masonry grid
         masonryContainer = container.querySelector('.masonry-grid:last-child');
+
+        // Fallback if no grid exists
+        if (!masonryContainer) {
+            const daySection = document.createElement('div');
+            daySection.className = 'day-section';
+            container.appendChild(daySection);
+
+            masonryContainer = document.createElement('div');
+            masonryContainer.className = 'masonry-grid';
+            daySection.appendChild(masonryContainer);
+        }
     } else {
         // Initial load: clear and create first grid
         container.innerHTML = '';
+
+        // Use the current date if available (usually the first date)
+        const dateStr = (typeof currentDate !== 'undefined' && currentDate) ? currentDate : null;
+
+        const daySection = document.createElement('div');
+        daySection.className = 'day-section';
+        container.appendChild(daySection);
+
+        // Only add separator if we have a date
+        if (dateStr) {
+            const separator = createDateSeparator(dateStr);
+            daySection.appendChild(separator);
+        }
+
         masonryContainer = document.createElement('div');
         masonryContainer.className = 'masonry-grid';
-        container.appendChild(masonryContainer);
+        daySection.appendChild(masonryContainer);
     }
 
     // Calculate the starting tweet index for this render
     const tweetsToRender = tweetUrls.slice(startIndex);
 
-    // Render cards progressively
-    tweetsToRender.forEach((url, index) => {
+    // 首屏优先策略：立即渲染前8个，其余用requestIdleCallback
+    const visibleCount = 8;
+    const visibleTweets = tweetsToRender.slice(0, visibleCount);
+    const remainingTweets = tweetsToRender.slice(visibleCount);
+
+    // 立即渲染首屏内容（前8个）
+    visibleTweets.forEach((url, index) => {
         const actualIndex = startIndex + index;
-        // Delay rendering each card
+        // 只给前3个保留微小延迟增加动画感
+        const delay = index < 3 ? index * 15 : 0;
+
         setTimeout(() => {
-            const contentItem = document.createElement('div');
-            contentItem.className = 'masonry-item';
-            contentItem.style.opacity = '0';
-
-            contentItem.innerHTML = `
-                <div class="tweet-embed-container" id="tweet-container-${actualIndex}" data-tweet-url="${url}" data-tweet-index="${actualIndex}">
-                    <div class="tweet-loading">
-                        <div class="loading-spinner"></div>
-                        <span>Loading...</span>
-                    </div>
-                    <div id="tweet-target-${actualIndex}"></div>
-                </div>
-            `;
-            masonryContainer.appendChild(contentItem);
-
-            // Trigger fade-in animation
-            requestAnimationFrame(() => {
-                contentItem.style.transition = 'opacity 0.4s ease-out, transform 0.4s ease-out';
-                contentItem.style.transform = 'translateY(20px)';
-                requestAnimationFrame(() => {
-                    contentItem.style.opacity = '1';
-                    contentItem.style.transform = 'translateY(0)';
-                });
-            });
-
-            // Setup observer for this specific card
-            setupLazyLoadingForTweet(contentItem.querySelector('.tweet-embed-container'));
-        }, index * 50); // 50ms delay between each card
+            renderTweetCard(url, actualIndex, masonryContainer);
+        }, delay);
     });
+
+    // 使用requestIdleCallback渲染剩余内容（或降级到setTimeout）
+    const renderRemaining = () => {
+        remainingTweets.forEach((url, index) => {
+            const actualIndex = startIndex + visibleCount + index;
+            renderTweetCard(url, actualIndex, masonryContainer);
+        });
+    };
+
+    if (remainingTweets.length > 0) {
+        if (window.requestIdleCallback) {
+            requestIdleCallback(renderRemaining, { timeout: 1000 });
+        } else {
+            setTimeout(renderRemaining, 100);
+        }
+    }
+}
+
+// 提取渲染单个tweet卡片的逻辑
+function renderTweetCard(url, actualIndex, masonryContainer) {
+    const contentItem = document.createElement('div');
+    contentItem.className = 'masonry-item';
+    contentItem.style.opacity = '0';
+
+    contentItem.innerHTML = `
+        <div class="tweet-embed-container" id="tweet-container-${actualIndex}" data-tweet-url="${url}" data-tweet-index="${actualIndex}">
+            <div class="tweet-loading">
+                <div class="loading-spinner"></div>
+                <span>Loading...</span>
+            </div>
+            <div id="tweet-target-${actualIndex}"></div>
+        </div>
+    `;
+    masonryContainer.appendChild(contentItem);
+
+    // Trigger fade-in animation
+    requestAnimationFrame(() => {
+        contentItem.style.transition = 'opacity 0.3s ease-out';
+        requestAnimationFrame(() => {
+            contentItem.style.opacity = '1';
+        });
+    });
+
+    // Setup observer for this specific card
+    setupLazyLoadingForTweet(contentItem.querySelector('.tweet-embed-container'));
 }
 
 // Create date separator element
@@ -217,35 +273,88 @@ function createDateSeparator(dateStr) {
     separator.innerHTML = `
         <div class="date-separator-line"></div>
         <div class="date-separator-text">${formattedDate}</div>
+        <button class="copy-day-btn" title="将此日期内容保存为图片" aria-label="Save as image">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+        </button>
         <div class="date-separator-line"></div>
     `;
+
+    const copyBtn = separator.querySelector('.copy-day-btn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            // Find the parent section which contains both the separator and the content grid
+            const targetContainer = separator.closest('.day-section');
+            if (targetContainer) {
+                copyDayAsImage(copyBtn, targetContainer, formattedDate);
+            } else {
+                // Fallback for unexpected structure
+                const nextSibling = separator.nextElementSibling;
+                if (nextSibling && (nextSibling.classList.contains('masonry-grid') || nextSibling.classList.contains('image-gallery-grid'))) {
+                    copyDayAsImage(copyBtn, nextSibling, formattedDate);
+                }
+            }
+        });
+    }
 
     return separator;
 }
 
-// Render Image Gallery (New Feature) - Progressive rendering
+// Render Image Gallery - Optimized for fast rendering
 function renderImageGallery(container, append = false, startIndex = 0, dateLabel = null) {
     // Create new gallery grid for each day if appending
     let galleryContainer;
 
     if (append && dateLabel) {
+        // Create wrapper for the day section
+        const daySection = document.createElement('div');
+        daySection.className = 'day-section';
+        container.appendChild(daySection);
+
         // Add date separator
         const separator = createDateSeparator(dateLabel);
-        container.appendChild(separator);
+        daySection.appendChild(separator);
 
         // Create new gallery grid for this day
         galleryContainer = document.createElement('div');
         galleryContainer.className = 'image-gallery-grid';
-        container.appendChild(galleryContainer);
+        daySection.appendChild(galleryContainer);
     } else if (append) {
         // Continue with existing gallery grid
         galleryContainer = container.querySelector('.image-gallery-grid:last-child');
+
+        // Fallback if no grid exists
+        if (!galleryContainer) {
+            const daySection = document.createElement('div');
+            daySection.className = 'day-section';
+            container.appendChild(daySection);
+
+            galleryContainer = document.createElement('div');
+            galleryContainer.className = 'image-gallery-grid';
+            daySection.appendChild(galleryContainer);
+        }
     } else {
         // Initial load: clear and create first grid
         container.innerHTML = '';
+
+        // Use the current date if available (usually the first date)
+        const dateStr = (typeof currentDate !== 'undefined' && currentDate) ? currentDate : null;
+
+        const daySection = document.createElement('div');
+        daySection.className = 'day-section';
+        container.appendChild(daySection);
+
+        // Only add separator if we have a date
+        if (dateStr) {
+            const separator = createDateSeparator(dateStr);
+            daySection.appendChild(separator);
+        }
+
         galleryContainer = document.createElement('div');
         galleryContainer.className = 'image-gallery-grid';
-        container.appendChild(galleryContainer);
+        daySection.appendChild(galleryContainer);
     }
 
     const galleryObserver = new IntersectionObserver((entries) => {
@@ -270,9 +379,25 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
                     }
 
                     // 简单纵向显示所有图片，添加淡入动画
-                    const imagesHTML = images.map((img, i) =>
-                        `<img src="${img}" alt="Tweet image ${i+1}" class="gallery-simple-img" style="opacity: 0;">`
-                    ).join('');
+                    const imagesHTML = images.map((mediaItem, i) => {
+                        const imgUrl = typeof mediaItem === 'string' ? mediaItem : mediaItem.url;
+                        const mediaType = typeof mediaItem === 'object' ? mediaItem.type : 'image';
+
+                        if (mediaType === 'video') {
+                            return `
+                                <div class="gallery-video-wrapper" style="position:relative;">
+                                    <img src="${imgUrl}" alt="Video thumbnail ${i + 1}" class="gallery-simple-img" style="opacity: 0;">
+                                    <div class="gallery-video-indicator" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;background:rgba(0,0,0,0.7);border-radius:50%;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);pointer-events:none;">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                                            <path d="M8 5v14l11-7z"/>
+                                        </svg>
+                                    </div>
+                                </div>
+                            `;
+                        }
+
+                        return `<img src="${imgUrl}" alt="Tweet image ${i + 1}" class="gallery-simple-img" style="opacity: 0;">`;
+                    }).join('');
 
                     placeholder.innerHTML = imagesHTML;
 
@@ -281,18 +406,16 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
                     imgElements.forEach((img, i) => {
                         const handleLoad = () => {
                             setTimeout(() => {
-                                img.style.transition = 'opacity 0.5s ease-out';
+                                img.style.transition = 'opacity 0.4s ease-out';
                                 img.style.opacity = '1';
-                            }, i * 100);
+                            }, i * 50);
                         };
 
                         img.onload = handleLoad;
                         img.onerror = () => {
-                            // 如果图片加载失败，也显示出来（可能是占位图）
                             img.style.opacity = '0.3';
                         };
 
-                        // 如果图片已经缓存或加载完成，立即显示
                         if (img.complete && img.naturalWidth > 0) {
                             handleLoad();
                         }
@@ -312,10 +435,14 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
         });
     }, { rootMargin: '200px' });
 
-    // Progressively render gallery items
+    // 首屏优先策略：立即渲染前12个
     const tweetsToRender = tweetUrls.slice(startIndex);
-    tweetsToRender.forEach((url, index) => {
-        const tweetIndex = startIndex + index;
+    const visibleCount = 12;
+    const visibleItems = tweetsToRender.slice(0, visibleCount);
+    const remainingItems = tweetsToRender.slice(visibleCount);
+
+    // 渲染单个gallery item的函数
+    const renderGalleryItem = (url, tweetIndex, delay = 0) => {
         setTimeout(() => {
             const wrapper = document.createElement('div');
             wrapper.className = 'gallery-item';
@@ -324,7 +451,7 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
             const tweetId = extractTweetId(url);
             if (tweetId) {
                 wrapper.dataset.tweetId = tweetId;
-                wrapper.dataset.tweetIndex = tweetIndex; // 保存索引
+                wrapper.dataset.tweetIndex = tweetIndex;
             }
 
             wrapper.innerHTML = `
@@ -361,7 +488,7 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
 
             // Fade in animation
             requestAnimationFrame(() => {
-                wrapper.style.transition = 'opacity 0.4s ease-out';
+                wrapper.style.transition = 'opacity 0.3s ease-out';
                 requestAnimationFrame(() => {
                     wrapper.style.opacity = '1';
                 });
@@ -398,8 +525,31 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
                     placeholder.innerHTML = '<div class="gallery-empty">Preview unavailable</div>';
                 }
             }
-        }, index * 30); // 30ms delay between each item
+        }, delay);
+    };
+
+    // 立即渲染首屏
+    visibleItems.forEach((url, index) => {
+        const tweetIndex = startIndex + index;
+        const delay = index < 4 ? index * 10 : 0; // 前4个有小延迟
+        renderGalleryItem(url, tweetIndex, delay);
     });
+
+    // 剩余部分用requestIdleCallback
+    if (remainingItems.length > 0) {
+        const renderRemaining = () => {
+            remainingItems.forEach((url, index) => {
+                const tweetIndex = startIndex + visibleCount + index;
+                renderGalleryItem(url, tweetIndex, 0);
+            });
+        };
+
+        if (window.requestIdleCallback) {
+            requestIdleCallback(renderRemaining, { timeout: 1000 });
+        } else {
+            setTimeout(renderRemaining, 100);
+        }
+    }
 }
 
 function fetchTweetMedia(tweetId) {
@@ -441,8 +591,24 @@ function extractImageUrlsFromTweetInfo(data) {
     const images = [];
     if (data && Array.isArray(data.media_extended)) {
         data.media_extended.forEach(media => {
-            if (media && media.type === 'image' && media.url) {
-                images.push(media.url);
+            if (media) {
+                // 处理图片
+                if (media.type === 'image' && media.url) {
+                    images.push({
+                        url: media.url,
+                        type: 'image'
+                    });
+                }
+                // 处理视频 - 提取缩略图
+                else if (media.type === 'video') {
+                    const thumbnailUrl = media.thumbnail_url || media.url;
+                    if (thumbnailUrl) {
+                        images.push({
+                            url: thumbnailUrl,
+                            type: 'video'
+                        });
+                    }
+                }
             }
         });
     }
@@ -450,7 +616,10 @@ function extractImageUrlsFromTweetInfo(data) {
     if (images.length === 0 && Array.isArray(data && data.mediaURLs)) {
         data.mediaURLs.forEach(url => {
             if (typeof url === 'string') {
-                images.push(url);
+                images.push({
+                    url: url,
+                    type: 'image' // 降级方案默认为图片
+                });
             }
         });
     }
@@ -603,18 +772,32 @@ function updateImageViewer() {
     counterEl.textContent = `${total} image${total > 1 ? 's' : ''}`;
 
     // 创建所有图片容器
-    imagesTrack.innerHTML = imageViewerState.images.map((imgSrc, index) => `
+    imagesTrack.innerHTML = imageViewerState.images.map((mediaItem, index) => {
+        const imgUrl = typeof mediaItem === 'string' ? mediaItem : mediaItem.url;
+        return `
         <div class="viewer-image-item" data-index="${index}">
             <div class="viewer-image-loading">
                 <div class="loading-spinner small"></div>
             </div>
-            <img class="viewer-image" data-src="${imgSrc}" alt="Tweet image ${index + 1}">
+            <img class="viewer-image" data-src="${imgUrl}" alt="Tweet image ${index + 1}">
         </div>
-    `).join('');
+        `;
+    }).join('');
 
     // 设置懒加载观察器
     setupImageLazyLoading();
     updateScrollNavButtons();
+
+    // 确保滚动到第一张图片的位置 - 使用 requestAnimationFrame 确保 DOM 更新完成
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            const scrollContainer = imageViewerEl.querySelector('.viewer-scroll-container');
+            if (scrollContainer) {
+                scrollContainer.scrollLeft = 0;
+                scrollContainer.scrollTo({ left: 0, behavior: 'instant' });
+            }
+        });
+    });
 }
 
 // 图片懒加载
@@ -985,11 +1168,11 @@ function setupInfiniteScroll() {
             const scrollHeight = document.documentElement.scrollHeight;
             const clientHeight = document.documentElement.clientHeight;
 
-            // Load more when within 1000px of bottom
-            if (scrollHeight - (scrollTop + clientHeight) < 1000) {
+            // Load more when within 2500px of bottom (提前预加载，避免用户等待)
+            if (scrollHeight - (scrollTop + clientHeight) < 2500) {
                 loadNextDate();
             }
-        }, 200);
+        }, 150); // 减少debounce时间，更快响应
     });
 }
 
@@ -1307,8 +1490,10 @@ function loadContentForDate(date, append = false) {
                 localStorage.setItem(storageKey, JSON.stringify(urls));
                 showSourceToast('cloud');
 
-                // Update date tab selection
-                selectDateTab(date);
+                // Update date tab selection only when not in append mode
+                if (!append) {
+                    selectDateTab(date);
+                }
                 return;
             }
 
@@ -1339,8 +1524,10 @@ function loadContentForDate(date, append = false) {
 
                         showSourceToast('cache');
 
-                        // Update date tab selection
-                        selectDateTab(date);
+                        // Update date tab selection only when not in append mode
+                        if (!append) {
+                            selectDateTab(date);
+                        }
                         return;
                     }
                 } catch (e) { }
@@ -1354,8 +1541,10 @@ function loadContentForDate(date, append = false) {
                 isLoadingMore = false;
             }
 
-            // Still update the selected tab even if no content
-            selectDateTab(date);
+            // Still update the selected tab even if no content (only when not appending)
+            if (!append) {
+                selectDateTab(date);
+            }
         })
         .catch(error => {
             console.error('Error loading content for date:', date, error);
@@ -1386,8 +1575,10 @@ function loadContentForDate(date, append = false) {
 
                         showSourceToast('cache');
 
-                        // Update date tab selection
-                        selectDateTab(date);
+                        // Update date tab selection only when not in append mode
+                        if (!append) {
+                            selectDateTab(date);
+                        }
                         return;
                     }
                 } catch (e) { }
@@ -1401,8 +1592,10 @@ function loadContentForDate(date, append = false) {
                 isLoadingMore = false;
             }
 
-            // Still update the selected tab even if no content
-            selectDateTab(date);
+            // Still update the selected tab even if no content (only when not appending)
+            if (!append) {
+                selectDateTab(date);
+            }
         });
 }
 
@@ -1470,3 +1663,81 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         }
     });
 });
+
+// Generate image from container and copy to clipboard
+function copyDayAsImage(button, container, dateLabel) {
+    if (button.classList.contains('generating')) return;
+
+    const originalIcon = button.innerHTML;
+    button.classList.add('generating');
+
+    // Check if html2canvas is loaded
+    if (typeof html2canvas === 'undefined') {
+        console.error('html2canvas library not loaded');
+        button.classList.remove('generating');
+        button.classList.add('error');
+        setTimeout(() => button.classList.remove('error'), 2000);
+        return;
+    }
+
+    html2canvas(container, {
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: getComputedStyle(document.body).backgroundColor,
+        scale: 2, // Higher quality
+        logging: false,
+        onclone: (clonedDoc) => {
+            // Adjust cloned elements if necessary
+            const clonedContainer = clonedDoc.querySelector(`.${container.className.split(' ')[0]}`);
+            if (clonedContainer) {
+                clonedContainer.style.transform = 'none';
+                clonedContainer.style.margin = '20px';
+            }
+        }
+    }).then(canvas => {
+        canvas.toBlob(blob => {
+            if (!blob) {
+                throw new Error('Canvas serialization failed');
+            }
+
+            // Attempt to write to clipboard
+            // Fallback to download if clipboard API fails
+            if (navigator.clipboard && navigator.clipboard.write) {
+                navigator.clipboard.write([
+                    new ClipboardItem({ 'image/png': blob })
+                ]).then(() => {
+                    handleSuccess();
+                }).catch(err => {
+                    console.warn('Clipboard write failed, falling back to download', err);
+                    triggerDownload(canvas, dateLabel);
+                    handleSuccess();
+                });
+            } else {
+                triggerDownload(canvas, dateLabel);
+                handleSuccess();
+            }
+        }, 'image/png');
+    }).catch(err => {
+        console.error('Snapshot failed:', err);
+        button.classList.remove('generating');
+        button.classList.add('error');
+        setTimeout(() => button.classList.remove('error'), 2000);
+    });
+
+    function handleSuccess() {
+        button.classList.remove('generating');
+        button.classList.add('success');
+        button.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+        setTimeout(() => {
+            button.classList.remove('success');
+            button.innerHTML = originalIcon;
+        }, 2000);
+    }
+
+    function triggerDownload(canvas, label) {
+        const link = document.createElement('a');
+        link.download = `NanoBanana-${label}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }
+}

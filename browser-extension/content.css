@@ -1,8 +1,61 @@
 /* Twitter Hot Content Quick Add - Content Styles */
 
-/* Menu item cursor */
+/* Custom dropdown menu item styling */
 .hot-content-menu-item {
+    display: flex !important;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 14px 16px;
+    font-size: 15px;
+    line-height: 20px;
+    font-weight: 600;
+    font-family: "TwitterChirp", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: inherit;
+    background: transparent;
+    border: none;
+    border-radius: 0;
     cursor: pointer !important;
+    transition: background-color 0.15s ease;
+}
+
+.hot-content-menu-item .hot-content-menu-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.hot-content-menu-item .hot-content-menu-icon svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+}
+
+.hot-content-menu-item .hot-content-menu-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.hot-content-menu-item .hot-content-menu-label {
+    color: inherit;
+}
+
+.hot-content-menu-item.loading {
+    opacity: 0.6;
+    cursor: progress !important;
+}
+
+.hot-content-menu-item.added {
+    color: rgb(0, 186, 124);
+}
+
+.hot-content-menu-item[aria-disabled="true"] {
+    pointer-events: none;
 }
 
 /* Notification toast */

@@ -1,0 +1,2561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tweet Filter | Twitter 链接筛选助手</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Source+Sans+3:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Dark Mode (Default) */
+            --background-dark: #090909;
+            --foreground-dark: #f5f5f5;
+            --card-dark: #111111;
+            --muted-dark: #131313;
+            --muted-foreground-dark: #9a9a9a;
+            --border-dark: rgba(255, 255, 255, 0.1);
+
+            /* Light Mode */
+            --background-light: #FAFAF8;
+            --foreground-light: #1A1A1A;
+            --card-light: #FFFFFF;
+            --muted-light: #F5F3F0;
+            --muted-foreground-light: #6B6B6B;
+            --border-light: #E8E4DF;
+
+            /* Accent colors - same for both modes */
+            --accent: #B8860B;
+            --accent-secondary: #D4A84B;
+            --accent-foreground: #ffffff;
+
+            /* Default to Dark Mode */
+            --background: var(--background-dark);
+            --foreground: var(--foreground-dark);
+            --card: var(--card-dark);
+            --muted: var(--muted-dark);
+            --muted-foreground: var(--muted-foreground-dark);
+            --border: var(--border-dark);
+
+            /* Shadows */
+            --shadow-sm-dark: 0 1px 2px rgba(0, 0, 0, 0.4);
+            --shadow-sm-light: 0 1px 2px rgba(26, 26, 26, 0.04);
+            --shadow-sm: var(--shadow-sm-dark);
+            --shadow-accent-dark: 0 8px 24px rgba(184, 134, 11, 0.25);
+            --shadow-accent-light: 0 4px 16px rgba(184, 134, 11, 0.15);
+            --shadow-accent: var(--shadow-accent-dark);
+
+            --transition: 200ms ease;
+            --sidebar-width: 520px;
+        }
+
+        /* Light mode class */
+        body.light-mode {
+            --background: var(--background-light);
+            --foreground: var(--foreground-light);
+            --card: var(--card-light);
+            --muted: var(--muted-light);
+            --muted-foreground: var(--muted-foreground-light);
+            --border: var(--border-light);
+            --shadow-sm: var(--shadow-sm-light);
+            --shadow-accent: var(--shadow-accent-light);
+        }
+
+        /* Light mode scrollbar adjustments */
+        body.light-mode * {
+            scrollbar-color: rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.05);
+        }
+
+        body.light-mode *::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        body.light-mode *::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.15) 100%);
+            border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        body.light-mode *::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.25) 100%);
+            border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        body.light-mode *::-webkit-scrollbar-thumb:active {
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.35) 100%);
+            border-color: rgba(0, 0, 0, 0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--background);
+            color: var(--foreground);
+            font-family: "Source Sans 3", system-ui, sans-serif;
+            min-height: 100vh;
+            letter-spacing: 0.01em;
+        }
+
+        /* ============================================
+           SCROLLBAR STYLING - Minimalist Black & White
+           ============================================ */
+
+        /* Firefox */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.15) rgba(0, 0, 0, 0.3);
+        }
+
+        /* WebKit Browsers (Chrome, Safari, Edge) */
+        *::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        *::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            margin: 2px;
+        }
+
+        *::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.12) 100%);
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 4px rgba(255, 255, 255, 0.05);
+            transition: all 200ms ease;
+        }
+
+        *::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.2) 100%);
+            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
+        }
+
+        *::-webkit-scrollbar-thumb:active {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.28) 100%);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
+        }
+
+        .filter-layout {
+            display: flex;
+            min-height: 100vh;
+            width: 100%;
+        }
+
+        .filter-sidebar {
+            width: var(--sidebar-width);
+            background: var(--card);
+            border-right: 1px solid var(--border);
+            padding: 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            flex-shrink: 0;
+            position: relative;
+            overflow-y: auto;
+            max-height: 100vh;
+        }
+
+        .filter-title {
+            font-family: "Playfair Display", serif;
+            font-size: 2rem;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.25rem;
+        }
+
+        .filter-description {
+            color: var(--muted-foreground);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+            flex: 1;
+        }
+
+        .form-group label {
+            text-transform: uppercase;
+            font-family: "IBM Plex Mono", monospace;
+            letter-spacing: 0.15em;
+            font-size: 0.75rem;
+            color: var(--accent);
+        }
+
+        textarea {
+            flex: 1;
+            width: 100%;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+            color: var(--foreground);
+            font-family: "Source Sans 3", system-ui, sans-serif;
+            font-size: 0.875rem;
+            line-height: 1.4;
+            resize: vertical;
+            min-height: 0;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(184, 134, 11, 0.2);
+        }
+
+        .filter-sidebar textarea {
+            font-family: "IBM Plex Mono", monospace;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            resize: none;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .sidebar-actions {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            border: 1px solid var(--border);
+            background: var(--muted);
+            color: var(--foreground);
+            font-family: "IBM Plex Mono", monospace;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 0.6rem 0.9rem;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: all var(--transition);
+            font-size: 0.75rem;
+        }
+
+        .btn.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--accent-foreground);
+            box-shadow: var(--shadow-accent);
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            border-color: var(--accent);
+        }
+
+        .filter-main {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 2.5rem 3rem;
+            gap: 1.5rem;
+            max-height: 100vh;
+            overflow-y: auto;
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 1rem;
+            justify-content: space-between;
+        }
+
+        .status-pill {
+            font-family: "IBM Plex Mono", monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.8rem;
+            color: var(--muted-foreground);
+        }
+
+        .select-all-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--muted-foreground);
+            font-family: "IBM Plex Mono", monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            user-select: none;
+            transition: color var(--transition);
+        }
+
+        .select-all-wrap:hover {
+            color: var(--accent);
+        }
+
+        .copy-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .preview-mode-toggle {
+            display: flex;
+            background: var(--muted);
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            padding: 3px;
+            gap: 0.25rem;
+        }
+
+        .preview-mode-toggle input {
+            display: none;
+        }
+
+        .preview-mode-toggle label {
+            padding: 0.35rem 0.9rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-family: "IBM Plex Mono", monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--muted-foreground);
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+
+        .preview-mode-toggle input:checked + label {
+            background: var(--background);
+            color: var(--accent);
+        }
+
+        /* Date Filter */
+        .date-filter {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.4rem 0.75rem;
+            background: var(--muted);
+            font-size: 0.8rem;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .date-filter-label {
+            color: var(--muted-foreground);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .date-chips {
+            display: flex;
+            gap: 0.35rem;
+            flex-wrap: wrap;
+        }
+
+        .date-chip {
+            padding: 0.25rem 0.65rem;
+            border-radius: 999px;
+            background: var(--background);
+            border: 1px solid var(--border);
+            color: var(--muted-foreground);
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all var(--transition);
+            user-select: none;
+        }
+
+        .date-chip:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .date-chip.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--accent-foreground);
+            box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.3);
+        }
+
+        .date-chip .count {
+            opacity: 0.7;
+            margin-left: 0.25rem;
+        }
+
+        /* Theme Toggle Button */
+        .theme-toggle {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all var(--transition);
+            flex-shrink: 0;
+        }
+
+        .theme-toggle:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--accent-foreground);
+            transform: rotate(15deg);
+        }
+
+        .theme-toggle svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .masonry-preview {
+            column-count: 3;
+            column-gap: 1rem;
+        }
+
+        @media (max-width: 1400px) {
+            .masonry-preview {
+                column-count: 2;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .masonry-preview {
+                column-count: 1;
+            }
+        }
+
+        .tweet-card-wrapper {
+            break-inside: avoid;
+            margin-bottom: 1rem;
+            position: relative;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            overflow: visible;
+            transition: all var(--transition);
+            cursor: pointer;
+        }
+
+        .tweet-card-wrapper::before {
+            display: none;
+        }
+
+        .tweet-card-wrapper:hover {
+            transform: translateY(-2px);
+        }
+
+        .tweet-card-wrapper.selected {
+            background: transparent;
+        }
+
+        .tweet-card-wrapper.unchecked {
+            opacity: 0.4;
+            filter: grayscale(1);
+        }
+
+        .tweet-card-wrapper.unchecked:hover {
+            opacity: 1;
+            filter: grayscale(0);
+        }
+
+        .tweet-embed-container {
+            padding: 0;
+            background: transparent;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            pointer-events: none;
+        }
+
+        .tweet-embed-container:not(.loaded) {
+            aspect-ratio: 1;
+        }
+
+        .tweet-embed-container::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: var(--muted);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            opacity: 1;
+            transition: opacity 0.4s ease;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            z-index: 0;
+        }
+
+        .tweet-embed-container.loaded {
+            min-height: auto;
+        }
+
+        .tweet-embed-container.loaded::before {
+            opacity: 0;
+            animation: none;
+        }
+
+        .tweet-embed-container > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .tweet-embed-container .twitter-tweet,
+        .tweet-embed-container blockquote.twitter-tweet {
+            margin: 0 !important;
+        }
+
+        .tweet-card-wrapper > .tweet-card-footer {
+            display: none;
+        }
+
+        .tweet-card-actions {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 100;
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transform: translateY(-4px);
+            transition: all var(--transition);
+            pointer-events: none;
+        }
+
+        .tweet-card-wrapper:hover .tweet-card-actions {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .card-select-btn,
+        .card-link-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--card);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all var(--transition);
+            backdrop-filter: blur(8px);
+        }
+
+        .card-link-btn {
+            text-decoration: none;
+            color: var(--muted-foreground);
+        }
+
+        .card-link-btn:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--accent-foreground);
+        }
+
+        .card-select-btn {
+            position: relative;
+        }
+
+        .card-select-btn input {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            z-index: 2;
+        }
+
+        .card-select-indicator {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: transparent;
+            transition: all var(--transition);
+            box-shadow: var(--shadow-sm);
+            pointer-events: none;
+        }
+
+        .card-select-indicator svg {
+            width: 18px;
+            height: 18px;
+            opacity: 0;
+            stroke: currentColor;
+            stroke-width: 3;
+            fill: none;
+            transform: scale(0.85);
+            transition: all var(--transition);
+        }
+
+        .card-select-btn input:checked + .card-select-indicator {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--accent-foreground);
+            box-shadow: var(--shadow-accent);
+        }
+
+        .card-select-btn input:checked + .card-select-indicator svg {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .image-mode-grid {
+            column-count: 4;
+            column-gap: 4px;
+        }
+
+        @media (max-width: 1200px) {
+            .image-mode-grid {
+                column-count: 3;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .image-mode-grid {
+                column-count: 2;
+            }
+        }
+
+        @media (max-width: 540px) {
+            .image-mode-grid {
+                column-count: 1;
+            }
+        }
+
+        .image-mode-card {
+            background: var(--card);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            break-inside: avoid;
+            margin-bottom: 3px;
+            transition: all var(--transition);
+            position: relative;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .image-mode-card:hover {
+            border-color: rgba(184, 134, 11, 0.4);
+        }
+
+        .image-mode-card.selected {
+            background: rgba(184, 134, 11, 0.02);
+            border-color: rgba(184, 134, 11, 0.3);
+        }
+
+        /* Light mode adjustments for image cards */
+        body.light-mode .image-mode-card:hover {
+            border-color: rgba(107, 107, 107, 0.3);
+        }
+
+        body.light-mode .image-mode-card.selected {
+            background: rgba(0, 0, 0, 0.02);
+            border-color: rgba(107, 107, 107, 0.25);
+        }
+
+        body.light-mode .image-card-likes {
+            color: var(--foreground);
+        }
+
+        body.light-mode .image-card-action-btn:hover {
+            background: var(--foreground);
+            border-color: var(--foreground);
+            color: var(--background);
+        }
+
+        body.light-mode .image-card-action-btn.copied {
+            background: var(--foreground);
+            border-color: var(--foreground);
+            color: var(--background);
+        }
+
+        body.light-mode .image-card-check-indicator {
+            background: var(--background);
+            border-color: var(--muted-foreground);
+        }
+
+        body.light-mode .image-mode-card.selected .image-card-check-indicator {
+            background: var(--foreground);
+            border-color: var(--foreground);
+            color: var(--background);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .image-mode-card.unchecked {
+            opacity: 0.4;
+            filter: grayscale(1);
+        }
+
+        .image-mode-card.unchecked:hover {
+            opacity: 1;
+            filter: grayscale(0);
+        }
+
+        .image-mode-card img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .image-mode-card .loading-placeholder {
+            padding: 2rem;
+            text-align: center;
+            color: var(--muted-foreground);
+        }
+
+        .image-card-info {
+            padding: 0.65rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            border-top: 1px solid var(--border);
+            background: var(--card);
+            font-size: 0.8rem;
+        }
+
+        .image-card-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .image-card-username {
+            color: var(--muted-foreground);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+
+        .image-card-likes {
+            color: var(--accent);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            flex-shrink: 0;
+        }
+
+        .image-card-likes svg {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
+        }
+
+        .image-card-date {
+            color: var(--muted-foreground);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.7rem;
+            opacity: 0.8;
+        }
+
+        /* Tweet Detail Modal */
+        .tweet-detail-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .tweet-detail-modal.show {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .tweet-detail-content {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            max-width: 800px;
+            max-height: 90vh;
+            width: 100%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .tweet-detail-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--muted);
+        }
+
+        .tweet-detail-user {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex: 1;
+        }
+
+        .tweet-detail-position {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--muted-foreground);
+            margin-left: auto;
+            margin-right: 1rem;
+        }
+
+        .tweet-detail-selected-indicator {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            border: 2px solid var(--border);
+            background: var(--background);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 0.5rem;
+            transition: all var(--transition);
+        }
+
+        .tweet-detail-selected-indicator.selected {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--accent-foreground);
+            box-shadow: var(--shadow-accent);
+        }
+
+        .tweet-detail-selected-indicator svg {
+            width: 18px;
+            height: 18px;
+            opacity: 0;
+            stroke: currentColor;
+            stroke-width: 3;
+            fill: none;
+            transition: opacity var(--transition);
+        }
+
+        .tweet-detail-selected-indicator.selected svg {
+            opacity: 1;
+        }
+
+        .tweet-detail-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid var(--border);
+        }
+
+        .tweet-detail-user-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tweet-detail-name {
+            font-weight: 600;
+            color: var(--foreground);
+            font-size: 0.95rem;
+        }
+
+        .tweet-detail-username {
+            color: var(--muted-foreground);
+            font-size: 0.85rem;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .tweet-detail-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            color: var(--muted-foreground);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition);
+        }
+
+        .tweet-detail-close:hover {
+            background: var(--muted);
+            color: var(--foreground);
+        }
+
+        .tweet-detail-body {
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .tweet-detail-images {
+            display: grid;
+            gap: 0.5rem;
+            background: var(--muted);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tweet-detail-images.single {
+            grid-template-columns: 1fr;
+        }
+
+        .tweet-detail-images.double {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .tweet-detail-images.multiple {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .tweet-detail-images img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .tweet-detail-text-section {
+            padding: 1.5rem;
+        }
+
+        .tweet-detail-text {
+            color: var(--foreground);
+            font-size: 1rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin-bottom: 0.5rem;
+        }
+
+        .tweet-detail-stat {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.85rem;
+        }
+
+        .tweet-detail-stat svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .tweet-detail-stat.likes {
+            color: var(--accent);
+        }
+
+        .tweet-detail-stat.replies {
+            color: #1da1f2;
+        }
+
+        .tweet-detail-stat.retweets {
+            color: #17bf63;
+        }
+
+        .tweet-detail-time {
+            color: var(--muted-foreground);
+            font-size: 0.85rem;
+            font-family: 'IBM Plex Mono', monospace;
+            margin-top: 1rem;
+        }
+
+        .tweet-detail-footer {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background: var(--muted);
+            flex-wrap: wrap;
+        }
+
+        .tweet-detail-footer-stats {
+            display: flex;
+            gap: 1.5rem;
+            flex: 1;
+            min-width: fit-content;
+        }
+
+        .tweet-detail-footer-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-left: auto;
+        }
+
+        .tweet-detail-action-btn {
+            padding: 0.65rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--background);
+            color: var(--foreground);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .tweet-detail-action-btn:hover {
+            background: var(--muted);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .tweet-detail-action-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .image-card-actions {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 100;
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transform: translateY(-4px);
+            transition: all var(--transition);
+            pointer-events: none;
+        }
+
+        .image-mode-card:hover .image-card-actions {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .image-card-action-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--card);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all var(--transition);
+            backdrop-filter: blur(8px);
+            color: var(--muted-foreground);
+        }
+
+        .image-card-action-btn:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--accent-foreground);
+        }
+
+        .image-card-action-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .image-card-action-btn.copied {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--accent-foreground);
+        }
+
+        .image-card-check-indicator {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 24px;
+            height: 24px;
+            background: var(--card);
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: all var(--transition);
+            backdrop-filter: blur(8px);
+            z-index: 90;
+        }
+
+        .image-mode-card:hover .image-card-check-indicator,
+        .image-mode-card.selected .image-card-check-indicator {
+            opacity: 1;
+        }
+
+        .image-mode-card.selected .image-card-check-indicator {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--accent-foreground);
+            box-shadow: var(--shadow-accent);
+        }
+
+        .status-message {
+            padding: 0.65rem 1rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.05);
+            font-size: 0.85rem;
+            color: var(--muted-foreground);
+            display: none;
+        }
+
+        .status-message.success {
+            color: var(--accent-secondary);
+        }
+
+        .sidebar-links {
+            margin-top: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .home-link {
+            padding: 0.65rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            text-decoration: none;
+            color: var(--muted-foreground);
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all var(--transition);
+            font-family: 'IBM Plex Mono', monospace;
+            letter-spacing: 0.02em;
+        }
+
+        .home-link:hover {
+            background: var(--muted);
+            border-color: var(--accent);
+            color: var(--accent);
+            transform: translateY(-1px);
+        }
+
+        .twitter-link {
+            padding: 0.65rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            text-decoration: none;
+            color: var(--muted-foreground);
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all var(--transition);
+            font-family: 'IBM Plex Mono', monospace;
+            letter-spacing: 0.02em;
+        }
+
+        .twitter-link:hover {
+            background: var(--muted);
+            border-color: var(--accent);
+            color: var(--accent);
+            transform: translateY(-1px);
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.3;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+
+            100% {
+                opacity: 0.3;
+            }
+        }
+
+        @media (max-width: 1080px) {
+            .filter-layout {
+                flex-direction: column;
+            }
+
+            .filter-sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                max-height: none;
+                overflow: visible;
+                position: static;
+            }
+
+            .filter-main {
+                padding: 1.5rem;
+                max-height: none;
+                overflow: visible;
+            }
+
+            .date-filter {
+                width: 100%;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .date-chips {
+                width: 100%;
+            }
+
+            .masonry-preview {
+                column-count: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="filter-layout">
+        <aside class="filter-sidebar">
+            <div>
+                <div class="filter-title">Tweet Filter</div>
+                <div class="filter-description">Paste links, preview tweets, select and copy.</div>
+            </div>
+            <div class="form-group">
+                <label for="rawInput">Paste Links</label>
+                <textarea id="rawInput" placeholder="https://twitter.com/..." spellcheck="false"></textarea>
+            </div>
+            <div class="sidebar-actions">
+                <button id="refreshPreviewBtn" class="btn" type="button">Preview</button>
+                <button id="clearInputBtn" class="btn" type="button">Clear</button>
+                <button id="copySelectedBtn" class="btn primary" type="button">Copy Links</button>
+            </div>
+            <div id="sidebarStatus" class="status-message" role="status"></div>
+            <div class="sidebar-links">
+                <a href="index.html" class="home-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                    </svg>
+                    Trending Monitor
+                </a>
+                <a href="https://x.com/ttmouse" target="_blank" rel="noopener" class="twitter-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                    </svg>
+                    Follow @ttmouse
+                </a>
+            </div>
+        </aside>
+
+        <main class="filter-main">
+            <div class="toolbar">
+                <div class="copy-info">
+                    <span class="status-pill">Detected <span id="linkCount">0</span> links</span>
+                    <span class="status-pill">Selected <span id="selectedCount">0</span></span>
+                    <label class="select-all-wrap">
+                        <input type="checkbox" id="selectAll" checked>
+                        Select All
+                    </label>
+                </div>
+                <div class="preview-mode-toggle">
+                    <input type="radio" name="previewMode" id="modeStandard" value="standard" checked>
+                    <label for="modeStandard">Tweets</label>
+                    <input type="radio" name="previewMode" id="modeImages" value="images">
+                    <label for="modeImages">Images</label>
+                </div>
+                <div class="date-filter" id="dateFilter" style="display: none;">
+                    <span class="date-filter-label">Date</span>
+                    <div class="date-chips" id="dateChips"></div>
+                </div>
+                <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+                    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="masonry-preview" id="linkList"></div>
+            <div class="image-mode-grid" id="linkListImages" style="display: none;"></div>
+        </main>
+    </div>
+
+    <script>
+        // Initialize theme immediately to prevent flash
+        (function() {
+            const savedTheme = localStorage.getItem('tweet-filter-theme') || 'dark';
+            if (savedTheme === 'light') {
+                document.body.classList.add('light-mode');
+            }
+        })();
+
+        // Theme toggle functionality
+        const sunIcon = `
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        `;
+        const moonIcon = `
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        `;
+
+        function updateThemeIcon() {
+            const themeIcon = document.getElementById('themeIcon');
+            const isLight = document.body.classList.contains('light-mode');
+            if (themeIcon) {
+                themeIcon.innerHTML = isLight ? moonIcon : sunIcon;
+            }
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('light-mode');
+            const theme = document.body.classList.contains('light-mode') ? 'light' : 'dark';
+            localStorage.setItem('tweet-filter-theme', theme);
+            updateThemeIcon();
+
+            // 重新渲染所有已加载的Twitter卡片
+            reloadTwitterCards();
+        }
+
+        // 获取当前主题
+        function getCurrentTheme() {
+            return document.body.classList.contains('light-mode') ? 'light' : 'dark';
+        }
+
+        // 重新渲染所有Twitter卡片
+        function reloadTwitterCards() {
+            const loadedContainers = document.querySelectorAll('.tweet-embed-container.loaded');
+            loadedContainers.forEach(container => {
+                if (container.classList.contains('error')) return; // 跳过错误的
+                const tweetUrl = container.dataset.tweetUrl;
+                if (tweetUrl) {
+                    const tweetId = extractTweetId(tweetUrl);
+                    if (tweetId && window.twttr && window.twttr.widgets) {
+                        loadTweetEmbed(container, true);
+                    }
+                }
+            });
+        }
+
+        // Initialize icon on load
+        document.addEventListener('DOMContentLoaded', () => {
+            updateThemeIcon();
+            const themeToggle = document.getElementById('themeToggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', toggleTheme);
+            }
+        });
+
+        const IMPORT_CACHE_KEY = 'tweet-filter-content';
+        const MAX_CONCURRENT_LOADS = 4;
+        let tweetObserver = null;
+        const loadingQueue = new Set();
+        let lastRenderedUrlsKey = '';
+        let twitterSdkReadyResolved = false;
+        let twitterSdkReadyResolver = null;
+        const twitterSdkReadyPromise = new Promise(resolve => {
+            twitterSdkReadyResolver = () => {
+                if (twitterSdkReadyResolved) return;
+                twitterSdkReadyResolved = true;
+                resolve();
+            };
+        });
+
+        function watchTwitterSdkReady() {
+            if (twitterSdkReadyResolved) return;
+            if (window.twttr && window.twttr.widgets) {
+                twitterSdkReadyResolver();
+                return;
+            }
+            if (window.twttr && typeof window.twttr.ready === 'function') {
+                window.twttr.ready(() => twitterSdkReadyResolver());
+                return;
+            }
+            requestAnimationFrame(watchTwitterSdkReady);
+        }
+
+        watchTwitterSdkReady();
+
+        function extractUrls(text) {
+            const regex = /https?:\/\/(?:x|twitter)\.com\/[a-zA-Z0-9_]+\/status\/\d+/gi;
+            const matches = text.match(regex) || [];
+            return [...new Set(matches.map(url => url.replace('x.com', 'twitter.com')))];
+        }
+
+        function extractTweetId(url) {
+            const match = url.match(/status\/(\d+)/);
+            return match ? match[1] : null;
+        }
+
+        // 全局变量追踪选中的日期
+        let selectedDates = new Set();
+
+        // Modal 导航全局变量
+        let currentModalIndex = -1;
+        let visibleCards = [];
+        let modalKeyboardHandler = null;
+
+        // 从已加载的卡片中收集日期信息并初始化筛选器
+        function initializeDateFilterFromCards() {
+            const dateMap = new Map(); // date -> count
+            const cards = document.querySelectorAll('.image-mode-card[data-date]');
+
+            cards.forEach(card => {
+                const date = card.dataset.date;
+                if (date) {
+                    dateMap.set(date, (dateMap.get(date) || 0) + 1);
+                }
+            });
+
+            // 如果没有日期数据，隐藏筛选器
+            if (dateMap.size === 0) {
+                document.getElementById('dateFilter').style.display = 'none';
+                return;
+            }
+
+            // 显示筛选器
+            document.getElementById('dateFilter').style.display = 'flex';
+
+            // 按日期降序排序
+            const sortedDates = Array.from(dateMap.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+
+            // 渲染日期chips
+            const chipsContainer = document.getElementById('dateChips');
+            chipsContainer.innerHTML = '';
+
+            sortedDates.forEach(([date, count]) => {
+                const chip = document.createElement('div');
+                chip.className = 'date-chip active'; // 默认全部激活
+                chip.dataset.date = date;
+
+                // 格式化日期显示
+                const dateObj = new Date(date);
+                const displayDate = dateObj.toLocaleDateString('zh-CN', {
+                    month: '2-digit',
+                    day: '2-digit'
+                });
+
+                chip.innerHTML = `${displayDate}<span class="count">(${count})</span>`;
+
+                chip.addEventListener('click', () => {
+                    toggleDateFilter(date, chip);
+                });
+
+                chipsContainer.appendChild(chip);
+            });
+
+            // 默认全部选中
+            selectedDates.clear();
+            sortedDates.forEach(([date]) => selectedDates.add(date));
+        }
+
+        // 切换日期筛选（多选模式）
+        function toggleDateFilter(date, chipElement) {
+            if (selectedDates.has(date)) {
+                // 取消选中
+                selectedDates.delete(date);
+                chipElement.classList.remove('active');
+            } else {
+                // 选中
+                selectedDates.add(date);
+                chipElement.classList.add('active');
+            }
+
+            // 重新渲染内容
+            applyDateFilter();
+        }
+
+        // 应用日期筛选
+        function applyDateFilter() {
+            const allCards = document.querySelectorAll('.image-mode-card');
+
+            allCards.forEach(card => {
+                const date = card.dataset.date;
+
+                // 如果没有选中任何日期，显示所有
+                if (selectedDates.size === 0) {
+                    card.style.display = '';
+                }
+                // 如果卡片没有日期，或者日期在选中列表中，显示
+                else if (!date || selectedDates.has(date)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            // 更新计数
+            updateCounts();
+        }
+
+        function updateCounts() {
+            // 只统计当前模式下可见的项目
+            const mode = document.querySelector('input[name="previewMode"]:checked').value;
+            const currentContainer = mode === 'images'
+                ? document.getElementById('linkListImages')
+                : document.getElementById('linkList');
+
+            const allVisible = Array.from(currentContainer.querySelectorAll('.tweet-check-input')).filter(cb => {
+                const card = cb.closest('.tweet-card-wrapper, .image-mode-card');
+                return card && card.style.display !== 'none';
+            });
+
+            const total = allVisible.length;
+            const selected = allVisible.filter(cb => cb.checked).length;
+
+            console.log('[Debug] updateCounts - Mode:', mode, 'Total visible:', total, 'Selected:', selected);
+
+            document.getElementById('linkCount').textContent = total;
+            document.getElementById('selectedCount').textContent = selected;
+            document.getElementById('selectAll').checked = total > 0 && total === selected;
+        }
+
+        function toggleItemStyle(checkbox) {
+            const wrapper = checkbox.closest('.tweet-card-wrapper') || checkbox.closest('.image-mode-card');
+            if (!wrapper) return;
+            if (checkbox.checked) {
+                wrapper.classList.remove('unchecked');
+                wrapper.classList.add('selected');
+            } else {
+                wrapper.classList.add('unchecked');
+                wrapper.classList.remove('selected');
+            }
+            updateCounts();
+        }
+
+        async function copySelectedLinks() {
+            // 只复制当前模式下可见且选中的链接
+            const mode = document.querySelector('input[name="previewMode"]:checked').value;
+            const currentContainer = mode === 'images'
+                ? document.getElementById('linkListImages')
+                : document.getElementById('linkList');
+
+            const selected = Array.from(currentContainer.querySelectorAll('.tweet-check-input:checked'))
+                .filter(cb => {
+                    const card = cb.closest('.tweet-card-wrapper, .image-mode-card');
+                    return card && card.style.display !== 'none';
+                })
+                .map(cb => cb.value);
+
+            if (selected.length === 0) {
+                showStatus('Please select links to keep first', 'error');
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(selected.join('\n'));
+                showStatus(`Copied ${selected.length} links`, 'success');
+            } catch (err) {
+                console.error(err);
+                showStatus('Copy failed, please retry', 'error');
+            }
+        }
+
+        function showStatus(message, type = 'info') {
+            const box = document.getElementById('sidebarStatus');
+            box.textContent = message;
+            box.classList.remove('success');
+            if (type === 'success') {
+                box.classList.add('success');
+            }
+            box.style.display = 'block';
+            clearTimeout(box._timer);
+            box._timer = setTimeout(() => box.style.display = 'none', 3000);
+        }
+
+        function updatePreview(urls) {
+            console.log('[Debug] updatePreview called with', urls.length, 'URLs');
+            const mode = document.querySelector('input[name="previewMode"]:checked').value;
+            const listStandard = document.getElementById('linkList');
+            const listImages = document.getElementById('linkListImages');
+            const urlsKey = JSON.stringify(urls);
+            const target = mode === 'images' ? listImages : listStandard;
+            const dataChanged = urlsKey !== lastRenderedUrlsKey;
+
+            console.log('[Debug] Mode:', mode, 'DataChanged:', dataChanged, 'Target has', target.childElementCount, 'children');
+
+            // 如果切换到 Tweet 模式，隐藏日期筛选器
+            if (mode === 'standard') {
+                document.getElementById('dateFilter').style.display = 'none';
+            }
+
+            if (dataChanged) {
+                lastRenderedUrlsKey = urlsKey;
+                listStandard.dataset.renderKey = '';
+                listImages.dataset.renderKey = '';
+                listStandard.innerHTML = '';
+                listImages.innerHTML = '';
+                loadingQueue.clear();
+                if (tweetObserver) {
+                    tweetObserver.disconnect();
+                    tweetObserver = null;
+                }
+            }
+
+            listStandard.style.display = mode === 'standard' ? '' : 'none';
+            listImages.style.display = mode === 'images' ? '' : 'none';
+
+            if (!urls.length) {
+                target.innerHTML = '<div style="text-align:center;padding:4rem;color:var(--muted-foreground);font-family:\'IBM Plex Mono\',monospace;text-transform:uppercase;letter-spacing:0.2em;">No links yet</div>';
+                target.dataset.renderKey = 'empty';
+                document.getElementById('linkCount').textContent = '0';
+                document.getElementById('selectedCount').textContent = '0';
+                document.getElementById('selectAll').checked = false;
+                return;
+            }
+
+            const needsRender = dataChanged || target.dataset.renderKey !== urlsKey || !target.childElementCount;
+            if (!needsRender) {
+                updateCounts();
+                // 如果是 Image 模式且已经有卡片，重新显示日期筛选器
+                if (mode === 'images') {
+                    const cards = document.querySelectorAll('.image-mode-card[data-date]');
+                    if (cards.length > 0) {
+                        initializeDateFilterFromCards();
+                    }
+                }
+                return;
+            }
+
+            target.innerHTML = '';
+
+            if (mode === 'images') {
+                renderImagePreview(urls, target);
+            } else {
+                urls.forEach((url, index) => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'tweet-card-wrapper selected';
+                    wrapper.innerHTML = `
+                        <div class="tweet-card-actions">
+                            <div class="card-select-btn">
+                                <input type="checkbox" class="tweet-check-input" value="${url}" checked>
+                                <span class="card-select-indicator">
+                                    <svg viewBox="0 0 24 24">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </span>
+                            </div>
+                            <a class="card-link-btn" href="${url}" target="_blank" rel="noopener">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"></path>
+                                </svg>
+                            </a>
+                        </div>
+                        <div class="tweet-embed-container" id="tweet-preview-${index}" data-tweet-url="${url}"></div>
+                    `;
+                    target.appendChild(wrapper);
+                });
+                initializeTweetLazyLoading();
+            }
+
+            target.dataset.renderKey = urlsKey;
+            updateCounts();
+        }
+
+        function renderImagePreview(urls, container) {
+            console.log('[Debug] renderImagePreview called with', urls.length, 'URLs');
+            container.innerHTML = '';
+            let loadedCount = 0;
+            const totalUrls = urls.length;
+
+            urls.forEach((url, index) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'image-mode-card selected';
+                wrapper.dataset.url = url;
+                wrapper.dataset.index = index;
+                wrapper.dataset.likes = '0'; // Default likes count for sorting
+                wrapper.innerHTML = `
+                    <input type="checkbox" class="tweet-check-input" value="${url}" checked hidden>
+                    <div class="image-card-check-indicator">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                    </div>
+                    <div class="image-card-actions">
+                        <button class="image-card-action-btn image-card-copy-btn" type="button" title="Copy link">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                        </button>
+                        <button class="image-card-action-btn image-card-detail-btn" type="button" title="View details" data-tweet-id="${extractTweetId(url)}">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                        </button>
+                        <a class="image-card-action-btn" href="${url}" target="_blank" rel="noopener" title="Open tweet">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"></path>
+                            </svg>
+                        </a>
+                    </div>
+                    <div class="loading-placeholder" id="img-load-${index}" style="display:flex;align-items:center;justify-content:center;padding:2rem;color:var(--muted-foreground);font-size:0.85rem;">Loading…</div>
+                    <div class="image-card-info" id="img-info-${index}" style="display:none;">
+                        <div class="image-card-meta">
+                            <span class="image-card-username">@username</span>
+                            <span class="image-card-likes">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                </svg>
+                                <span>0</span>
+                            </span>
+                        </div>
+                        <div class="image-card-date" id="img-date-${index}"></div>
+                    </div>
+                `;
+
+                // 点击卡片切换选中状态（但不包括按钮区域）
+                wrapper.addEventListener('click', (e) => {
+                    // 如果点击的是操作按钮区域，不触发选中切换
+                    if (e.target.closest('.image-card-actions')) {
+                        return;
+                    }
+                    const checkbox = wrapper.querySelector('.tweet-check-input');
+                    if (!checkbox) return;
+                    checkbox.checked = !checkbox.checked;
+                    toggleItemStyle(checkbox);
+                });
+
+                // 复制链接按钮
+                const copyBtn = wrapper.querySelector('.image-card-copy-btn');
+                copyBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    try {
+                        await navigator.clipboard.writeText(url);
+                        copyBtn.classList.add('copied');
+                        setTimeout(() => {
+                            copyBtn.classList.remove('copied');
+                        }, 1500);
+                    } catch (err) {
+                        console.error('Copy failed:', err);
+                    }
+                });
+
+                container.appendChild(wrapper);
+
+                const id = extractTweetId(url);
+                if (!id) {
+                    loadedCount++;
+                    return;
+                }
+
+                console.log('[Debug] Processing tweet', index + 1, '/', totalUrls, 'ID:', id);
+
+                fetch(`/api/tweet_info?id=${id}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const placeholder = document.getElementById(`img-load-${index}`);
+                        const infoBar = document.getElementById(`img-info-${index}`);
+                        if (!placeholder) return;
+
+                        let imgUrl = null;
+                        let isVideo = false;
+
+                        // 优先从 media_extended 获取媒体
+                        if (Array.isArray(data.media_extended)) {
+                            // 先找图片
+                            let found = data.media_extended.find(item => item.type === 'image' && item.url);
+                            if (found) {
+                                imgUrl = found.url;
+                            } else {
+                                // 如果没有图片，找视频的缩略图
+                                found = data.media_extended.find(item => item.type === 'video');
+                                if (found) {
+                                    isVideo = true;
+                                    // VxTwitter 通常会提供 thumbnail_url 或使用第一帧
+                                    imgUrl = found.thumbnail_url || found.url;
+                                }
+                            }
+                        }
+
+                        // 降级方案：使用 mediaURLs
+                        if (!imgUrl && Array.isArray(data.mediaURLs) && data.mediaURLs.length) {
+                            imgUrl = data.mediaURLs[0];
+                        }
+
+                        if (imgUrl) {
+                            const mediaHTML = isVideo
+                                ? `<div style="position:relative;">
+                                    <img src="${imgUrl}" alt="Video thumbnail" loading="lazy">
+                                    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;background:rgba(0,0,0,0.7);border-radius:50%;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                                            <path d="M8 5v14l11-7z"/>
+                                        </svg>
+                                    </div>
+                                   </div>`
+                                : `<img src="${imgUrl}" alt="Tweet image" loading="lazy">`;
+                            placeholder.outerHTML = mediaHTML;
+                        } else {
+                            placeholder.innerHTML = 'No media found';
+                        }
+
+                        // 更新信息栏和排序属性
+                        if (infoBar) {
+                            const username = data.user_screen_name || data.user_name || 'Unknown';
+                            const likes = data.likes || 0;
+                            const formattedLikes = likes >= 1000
+                                ? (likes / 1000).toFixed(1) + 'K'
+                                : likes.toString();
+
+                            // 存储原始点赞数用于排序
+                            wrapper.dataset.likes = likes.toString();
+
+                            // 存储日期用于筛选（格式：YYYY-MM-DD，使用本地时区）
+                            if (data.date) {
+                                const date = new Date(data.date);
+                                // 使用本地时区的日期，而不是 UTC
+                                const year = date.getFullYear();
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const day = String(date.getDate()).padStart(2, '0');
+                                const dateStr = `${year}-${month}-${day}`;
+                                wrapper.dataset.date = dateStr;
+                            }
+
+                            infoBar.querySelector('.image-card-username').textContent = `@${username}`;
+                            infoBar.querySelector('.image-card-likes span').textContent = formattedLikes;
+
+                            // 显示日期时间
+                            const dateElement = document.getElementById(`img-date-${index}`);
+                            if (dateElement && data.date) {
+                                // 直接显示具体日期时间
+                                const date = new Date(data.date);
+                                const timeStr = date.toLocaleString('zh-CN', {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                });
+                                dateElement.textContent = timeStr;
+                            }
+
+                            // 存储完整数据到wrapper，供Modal使用
+                            wrapper.dataset.tweetData = JSON.stringify(data);
+
+                            infoBar.style.display = 'flex';
+                        }
+
+                        loadedCount++;
+                        // 所有数据加载完成后，按点赞数排序并初始化日期筛选器
+                        if (loadedCount === totalUrls) {
+                            sortImageCardsByLikes(container);
+                            initializeDateFilterFromCards();
+                        }
+                    })
+                    .catch(() => {
+                        const placeholder = document.getElementById(`img-load-${index}`);
+                        if (placeholder) placeholder.innerHTML = 'Load failed';
+                        loadedCount++;
+                        // 即使有失败的，也要检查是否全部处理完
+                        if (loadedCount === totalUrls) {
+                            sortImageCardsByLikes(container);
+                            initializeDateFilterFromCards();
+                        }
+                    });
+            });
+        }
+
+        // 按点赞数对图片卡片进行降序排序
+        function sortImageCardsByLikes(container) {
+            const cards = Array.from(container.querySelectorAll('.image-mode-card'));
+
+            // 按 likes 数据属性降序排序
+            cards.sort((a, b) => {
+                const likesA = parseInt(a.dataset.likes) || 0;
+                const likesB = parseInt(b.dataset.likes) || 0;
+                return likesB - likesA; // 降序
+            });
+
+            // 清空容器并按新顺序重新插入
+            container.innerHTML = '';
+            cards.forEach(card => container.appendChild(card));
+        }
+
+        function initializeTweetLazyLoading() {
+            if (tweetObserver) {
+                tweetObserver.disconnect();
+            }
+
+            const containers = document.querySelectorAll('.tweet-embed-container:not(.loaded)');
+            if (!containers.length) return;
+
+            tweetObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (!entry.isIntersecting) return;
+                    const container = entry.target;
+                    if (container.classList.contains('loaded') || loadingQueue.has(container.id)) return;
+
+                    if (loadingQueue.size < MAX_CONCURRENT_LOADS) {
+                        container.classList.add('loading');
+                        loadingQueue.add(container.id);
+                        loadTweetEmbed(container);
+                        tweetObserver.unobserve(container);
+                    }
+                });
+            }, {
+                root: null,
+                rootMargin: '800px',
+                threshold: 0.01
+            });
+
+            containers.forEach(container => tweetObserver.observe(container));
+            fillLoadingQueue();
+        }
+
+        function fillLoadingQueue() {
+            const waiting = Array.from(document.querySelectorAll('.tweet-embed-container:not(.loaded):not(.loading)'))
+                .filter(el => !loadingQueue.has(el.id));
+            if (!waiting.length) return;
+
+            const available = MAX_CONCURRENT_LOADS - loadingQueue.size;
+            if (available <= 0) return;
+
+            waiting.slice(0, available).forEach(container => {
+                container.classList.add('loading');
+                loadingQueue.add(container.id);
+                loadTweetEmbed(container);
+                if (tweetObserver) tweetObserver.unobserve(container);
+            });
+        }
+
+        async function loadTweetEmbed(container, isRetry = false) {
+            if (!container) return;
+
+            if (!twitterSdkReadyResolved) {
+                try {
+                    await twitterSdkReadyPromise;
+                } catch (err) {
+                    console.error('Twitter SDK wait error', err);
+                }
+            }
+
+            const tweetId = extractTweetId(container.dataset.tweetUrl);
+            if (!tweetId || !window.twttr || !window.twttr.widgets) {
+                showRetryButton(container, 'Twitter SDK 未加载');
+                container.classList.add('loaded', 'error');
+                container.classList.remove('loading');
+                loadingQueue.delete(container.id);
+                fillLoadingQueue();
+                return;
+            }
+
+            if (isRetry) {
+                container.innerHTML = '';
+                container.classList.remove('error');
+                container.classList.add('loading');
+            }
+
+            window.twttr.widgets.createTweet(tweetId, container, {
+                theme: getCurrentTheme(),
+                dnt: true,
+                conversation: 'none',
+                cards: 'visible',
+                width: 520,
+                chrome: 'nofooter'
+            }).then(() => {
+                container.classList.remove('loading', 'error');
+                container.classList.add('loaded');
+                loadingQueue.delete(container.id);
+                fillLoadingQueue();
+            }).catch(() => {
+                showRetryButton(container, '加载失败，点击重试');
+                container.classList.add('error', 'loaded');
+                container.classList.remove('loading');
+                loadingQueue.delete(container.id);
+                fillLoadingQueue();
+            });
+        }
+
+        function showRetryButton(container, message) {
+            container.innerHTML = `
+                <div style="text-align:center;padding:2rem;color:var(--muted-foreground);display:flex;flex-direction:column;gap:0.75rem;align-items:center;">
+                    <div>${message}</div>
+                    <button class="btn primary" type="button" onclick="retryLoad('${container.id}')">重试</button>
+                </div>
+            `;
+        }
+
+        window.retryLoad = function (id) {
+            const el = document.getElementById(id);
+            if (el) {
+                loadTweetEmbed(el, true);
+            }
+        };
+
+        function retryAllFailedTweets() {
+            const failedContainers = document.querySelectorAll('.tweet-embed-container.error');
+            if (failedContainers.length === 0) {
+                return false;
+            }
+
+            failedContainers.forEach(container => {
+                container.classList.remove('loaded', 'error');
+                loadingQueue.delete(container.id);
+            });
+
+            initializeTweetLazyLoading();
+            return true;
+        }
+
+        document.addEventListener('click', (event) => {
+            const selectBtn = event.target.closest('.card-select-btn');
+            if (!selectBtn) return;
+            const checkbox = selectBtn.querySelector('.tweet-check-input');
+            if (!checkbox) return;
+            if (event.target === checkbox) return;
+            event.preventDefault();
+            checkbox.checked = !checkbox.checked;
+            toggleItemStyle(checkbox);
+        });
+
+        // Click entire card to toggle selection
+        document.addEventListener('click', (event) => {
+            // Ignore clicks on action buttons
+            if (event.target.closest('.card-select-btn') ||
+                event.target.closest('.card-link-btn') ||
+                event.target.closest('.card-delete-btn')) {
+                return;
+            }
+
+            const wrapper = event.target.closest('.tweet-card-wrapper');
+            if (!wrapper) return;
+
+            const checkbox = wrapper.querySelector('.tweet-check-input');
+            if (!checkbox) return;
+
+            checkbox.checked = !checkbox.checked;
+            toggleItemStyle(checkbox);
+        });
+
+        document.addEventListener('change', (event) => {
+            if (event.target.classList && event.target.classList.contains('tweet-check-input')) {
+                toggleItemStyle(event.target);
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const textarea = document.getElementById('rawInput');
+            const selectAll = document.getElementById('selectAll');
+            const copyBtn = document.getElementById('copySelectedBtn');
+            const clearBtn = document.getElementById('clearInputBtn');
+            const refreshBtn = document.getElementById('refreshPreviewBtn');
+            let inputUpdateTimer = null;
+            const runTextareaPreviewUpdate = () => updatePreview(extractUrls(textarea.value));
+            const scheduleTextareaPreviewUpdate = () => {
+                clearTimeout(inputUpdateTimer);
+                inputUpdateTimer = setTimeout(runTextareaPreviewUpdate, 400);
+            };
+
+            const cached = localStorage.getItem(IMPORT_CACHE_KEY);
+            if (cached) {
+                textarea.value = cached;
+                updatePreview(extractUrls(cached));
+            }
+
+            textarea.addEventListener('input', () => {
+                localStorage.setItem(IMPORT_CACHE_KEY, textarea.value);
+                scheduleTextareaPreviewUpdate();
+            });
+
+            refreshBtn.addEventListener('click', () => {
+                const hasFailedTweets = retryAllFailedTweets();
+                if (hasFailedTweets) {
+                    showStatus('Retrying failed tweets...', 'success');
+                } else {
+                    runTextareaPreviewUpdate();
+                    showStatus('Preview updated', 'success');
+                }
+            });
+
+            selectAll.addEventListener('change', (event) => {
+                const isChecked = event.target.checked;
+                // 只操作当前模式下的复选框
+                const mode = document.querySelector('input[name="previewMode"]:checked').value;
+                const currentContainer = mode === 'images'
+                    ? document.getElementById('linkListImages')
+                    : document.getElementById('linkList');
+
+                currentContainer.querySelectorAll('.tweet-check-input').forEach(cb => {
+                    const wrapper = cb.closest('.tweet-card-wrapper') || cb.closest('.image-mode-card');
+                    // 跳过隐藏的项目（被日期筛选隐藏的）
+                    if (wrapper && wrapper.style.display === 'none') {
+                        return;
+                    }
+
+                    cb.checked = isChecked;
+                    if (wrapper) {
+                        if (isChecked) {
+                            wrapper.classList.remove('unchecked');
+                            wrapper.classList.add('selected');
+                        } else {
+                            wrapper.classList.add('unchecked');
+                            wrapper.classList.remove('selected');
+                        }
+                    }
+                });
+                // 统一更新计数，避免循环中多次更新导致状态错乱
+                updateCounts();
+            });
+
+            copyBtn.addEventListener('click', copySelectedLinks);
+
+            clearBtn.addEventListener('click', () => {
+                textarea.value = '';
+                localStorage.removeItem(IMPORT_CACHE_KEY);
+                updatePreview([]);
+                showStatus('Content cleared', 'success');
+            });
+
+            document.querySelectorAll('input[name="previewMode"]').forEach(radio => {
+                radio.addEventListener('change', runTextareaPreviewUpdate);
+            });
+
+            // 详情按钮点击事件（使用事件委托）
+            document.addEventListener('click', (e) => {
+                const detailBtn = e.target.closest('.image-card-detail-btn');
+                if (detailBtn) {
+                    const wrapper = detailBtn.closest('.image-mode-card');
+                    if (wrapper && wrapper.dataset.tweetData) {
+                        try {
+                            // 获取所有可见的卡片
+                            const allCards = Array.from(document.querySelectorAll('.image-mode-card'))
+                                .filter(card => card.style.display !== 'none');
+                            const currentIndex = allCards.indexOf(wrapper);
+
+                            const data = JSON.parse(wrapper.dataset.tweetData);
+                            const url = wrapper.querySelector('.tweet-check-input').value;
+                            openTweetDetail(data, url, currentIndex, allCards);
+                        } catch (err) {
+                            console.error('Failed to parse tweet data:', err);
+                        }
+                    }
+                }
+            });
+        });
+
+        // 打开推文详情Modal
+        function openTweetDetail(data, url, index, cards) {
+            const modal = document.getElementById('tweetDetailModal');
+
+            // 保存当前状态
+            currentModalIndex = index;
+            visibleCards = cards;
+
+            // 填充内容
+            updateModalContent(data, url);
+
+            // 显示Modal
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+
+            // 移除旧的键盘事件监听器
+            if (modalKeyboardHandler) {
+                document.removeEventListener('keydown', modalKeyboardHandler);
+            }
+
+            // 添加键盘事件监听器
+            modalKeyboardHandler = (e) => {
+                // 忽略在输入框中的按键
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                    return;
+                }
+
+                switch(e.key) {
+                    case 'Escape':
+                        closeTweetDetail();
+                        break;
+                    case ' ':
+                        e.preventDefault();
+                        toggleCurrentTweetSelection();
+                        break;
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        navigateToTweet(-1);
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        navigateToTweet(1);
+                        break;
+                    case 'c':
+                    case 'C':
+                        e.preventDefault();
+                        copyCurrentTweetLink();
+                        break;
+                    case 'Enter':
+                        e.preventDefault();
+                        openCurrentTweet();
+                        break;
+                }
+            };
+
+            document.addEventListener('keydown', modalKeyboardHandler);
+
+            // 点击背景关闭
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    closeTweetDetail();
+                }
+            };
+        }
+
+        // 更新 Modal 内容
+        function updateModalContent(data, url) {
+            // 填充用户信息
+            document.getElementById('modalAvatar').src = data.user_profile_image_url || '';
+            document.getElementById('modalName').textContent = data.user_name || 'Unknown';
+            document.getElementById('modalUsername').textContent = `@${data.user_screen_name || 'unknown'}`;
+
+            // 更新位置指示
+            const positionEl = document.getElementById('modalPosition');
+            positionEl.textContent = `${currentModalIndex + 1} / ${visibleCards.length}`;
+
+            // 更新选中状态
+            updateSelectedIndicator();
+
+            // 填充推文文本
+            document.getElementById('modalText').textContent = data.text || '';
+
+            // 填充媒体（图片和视频）
+            const imagesContainer = document.getElementById('modalImages');
+            imagesContainer.innerHTML = '';
+            if (data.media_extended && data.media_extended.length > 0) {
+                // 获取所有媒体（图片和视频）
+                const mediaItems = data.media_extended.filter(m => m.type === 'image' || m.type === 'video');
+                if (mediaItems.length > 0) {
+                    imagesContainer.className = 'tweet-detail-images';
+                    if (mediaItems.length === 1) {
+                        imagesContainer.classList.add('single');
+                    } else if (mediaItems.length === 2) {
+                        imagesContainer.classList.add('double');
+                    } else {
+                        imagesContainer.classList.add('multiple');
+                    }
+
+                    mediaItems.forEach(item => {
+                        if (item.type === 'image') {
+                            // 渲染图片
+                            const imgEl = document.createElement('img');
+                            imgEl.src = item.url;
+                            imgEl.alt = 'Tweet image';
+                            imagesContainer.appendChild(imgEl);
+                        } else if (item.type === 'video') {
+                            // 渲染视频
+                            const videoEl = document.createElement('video');
+                            videoEl.controls = true;
+                            videoEl.preload = 'metadata';
+                            videoEl.style.width = '100%';
+                            videoEl.style.height = 'auto';
+                            videoEl.style.display = 'block';
+                            videoEl.style.backgroundColor = '#000';
+
+                            // 设置 poster（缩略图）
+                            if (item.thumbnail_url) {
+                                videoEl.poster = item.thumbnail_url;
+                            }
+
+                            // 设置视频源
+                            if (item.url) {
+                                videoEl.src = item.url;
+                            }
+
+                            imagesContainer.appendChild(videoEl);
+                        }
+                    });
+                }
+            } else if (data.mediaURLs && data.mediaURLs.length > 0) {
+                imagesContainer.className = 'tweet-detail-images single';
+                data.mediaURLs.forEach(imgUrl => {
+                    const imgEl = document.createElement('img');
+                    imgEl.src = imgUrl;
+                    imgEl.alt = 'Tweet image';
+                    imagesContainer.appendChild(imgEl);
+                });
+            }
+
+            // 填充互动数据
+            document.getElementById('modalLikes').textContent = data.likes || 0;
+            document.getElementById('modalRetweets').textContent = data.retweets || 0;
+            document.getElementById('modalReplies').textContent = data.replies || 0;
+
+            // 填充时间
+            if (data.date) {
+                const date = new Date(data.date);
+                const timeStr = date.toLocaleString('zh-CN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                document.getElementById('modalTime').textContent = timeStr;
+            }
+
+            // 设置操作按钮
+            document.getElementById('modalOpenBtn').href = url;
+            document.getElementById('modalCopyBtn').onclick = async () => {
+                try {
+                    await navigator.clipboard.writeText(url);
+                    const btn = document.getElementById('modalCopyBtn');
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> 已复制';
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                    }, 2000);
+                } catch (err) {
+                    console.error('Copy failed:', err);
+                }
+            };
+        }
+
+        // 更新选中状态指示器
+        function updateSelectedIndicator() {
+            const indicator = document.getElementById('modalSelectedIndicator');
+            const currentCard = visibleCards[currentModalIndex];
+            if (!currentCard) return;
+
+            const checkbox = currentCard.querySelector('.tweet-check-input');
+            if (checkbox && checkbox.checked) {
+                indicator.classList.add('selected');
+            } else {
+                indicator.classList.remove('selected');
+            }
+        }
+
+        // 切换当前推文的选中状态
+        function toggleCurrentTweetSelection() {
+            const currentCard = visibleCards[currentModalIndex];
+            if (!currentCard) return;
+
+            const checkbox = currentCard.querySelector('.tweet-check-input');
+            if (!checkbox) return;
+
+            checkbox.checked = !checkbox.checked;
+            toggleItemStyle(checkbox);
+            updateSelectedIndicator();
+        }
+
+        // 导航到上一张/下一张
+        function navigateToTweet(direction) {
+            const newIndex = currentModalIndex + direction;
+
+            // 检查边界
+            if (newIndex < 0 || newIndex >= visibleCards.length) {
+                return; // 到达边界，停止
+            }
+
+            // 更新索引
+            currentModalIndex = newIndex;
+
+            // 获取新卡片的数据
+            const newCard = visibleCards[currentModalIndex];
+            if (!newCard || !newCard.dataset.tweetData) return;
+
+            try {
+                const data = JSON.parse(newCard.dataset.tweetData);
+                const url = newCard.querySelector('.tweet-check-input').value;
+                updateModalContent(data, url);
+            } catch (err) {
+                console.error('Failed to navigate to tweet:', err);
+            }
+        }
+
+        // 复制当前推文链接
+        async function copyCurrentTweetLink() {
+            const currentCard = visibleCards[currentModalIndex];
+            if (!currentCard) return;
+
+            const checkbox = currentCard.querySelector('.tweet-check-input');
+            if (!checkbox) return;
+
+            const url = checkbox.value;
+
+            try {
+                await navigator.clipboard.writeText(url);
+
+                // 在Modal内显示临时提示
+                const modal = document.getElementById('tweetDetailModal');
+                const toast = document.createElement('div');
+                toast.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: var(--accent);
+                    color: var(--accent-foreground);
+                    padding: 1rem 2rem;
+                    border-radius: 8px;
+                    font-family: 'IBM Plex Mono', monospace;
+                    font-size: 0.9rem;
+                    z-index: 10000;
+                    box-shadow: var(--shadow-accent);
+                    animation: fadeIn 0.2s ease;
+                `;
+                toast.textContent = '✓ 链接已复制';
+                document.body.appendChild(toast);
+
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transition = 'opacity 0.3s ease';
+                    setTimeout(() => toast.remove(), 300);
+                }, 1500);
+            } catch (err) {
+                console.error('Copy failed:', err);
+            }
+        }
+
+        // 打开当前推文
+        function openCurrentTweet() {
+            const currentCard = visibleCards[currentModalIndex];
+            if (!currentCard) return;
+
+            const checkbox = currentCard.querySelector('.tweet-check-input');
+            if (!checkbox) return;
+
+            const url = checkbox.value;
+            window.open(url, '_blank', 'noopener');
+        }
+
+        // 关闭推文详情Modal
+        function closeTweetDetail() {
+            const modal = document.getElementById('tweetDetailModal');
+            modal.classList.remove('show');
+            document.body.style.overflow = '';
+
+            // 移除键盘事件监听器
+            if (modalKeyboardHandler) {
+                document.removeEventListener('keydown', modalKeyboardHandler);
+                modalKeyboardHandler = null;
+            }
+
+            // 清理状态
+            currentModalIndex = -1;
+            visibleCards = [];
+        }
+    </script>
+    <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+    <!-- Tweet Detail Modal -->
+    <div class="tweet-detail-modal" id="tweetDetailModal">
+        <div class="tweet-detail-content" onclick="event.stopPropagation()">
+            <div class="tweet-detail-header">
+                <div class="tweet-detail-user">
+                    <img class="tweet-detail-avatar" id="modalAvatar" src="" alt="Avatar">
+                    <div class="tweet-detail-user-info">
+                        <div class="tweet-detail-name" id="modalName"></div>
+                        <div class="tweet-detail-username" id="modalUsername"></div>
+                    </div>
+                </div>
+                <div class="tweet-detail-position" id="modalPosition">1 / 1</div>
+                <div class="tweet-detail-selected-indicator" id="modalSelectedIndicator">
+                    <svg viewBox="0 0 24 24">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </div>
+                <button class="tweet-detail-close" onclick="closeTweetDetail()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="tweet-detail-body">
+                <div class="tweet-detail-images" id="modalImages"></div>
+                <div class="tweet-detail-text-section">
+                    <div class="tweet-detail-text" id="modalText"></div>
+                    <div class="tweet-detail-time" id="modalTime"></div>
+                </div>
+            </div>
+            <div class="tweet-detail-footer">
+                <div class="tweet-detail-footer-stats">
+                    <div class="tweet-detail-stat likes">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        </svg>
+                        <span id="modalLikes">0</span>
+                    </div>
+                    <div class="tweet-detail-stat retweets">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M23.77 15.67a.749.749 0 0 0-1.06 0l-2.22 2.22V7.65a3.755 3.755 0 0 0-3.75-3.75h-5.85a.75.75 0 0 0 0 1.5h5.85c1.24 0 2.25 1.01 2.25 2.25v10.24l-2.22-2.22a.749.749 0 1 0-1.06 1.06l3.5 3.5a.747.747 0 0 0 1.06 0l3.5-3.5a.749.749 0 0 0 0-1.06zm-10.66 3.28H7.26c-1.24 0-2.25-1.01-2.25-2.25V6.46l2.22 2.22a.752.752 0 0 0 1.062 0 .749.749 0 0 0 0-1.06l-3.5-3.5a.747.747 0 0 0-1.06 0l-3.5 3.5a.749.749 0 1 0 1.06 1.06l2.22-2.22V16.7a3.755 3.755 0 0 0 3.75 3.75h5.85a.75.75 0 0 0 0-1.5z"></path>
+                        </svg>
+                        <span id="modalRetweets">0</span>
+                    </div>
+                    <div class="tweet-detail-stat replies">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01zm8.005-6c-3.317 0-6.005 2.69-6.005 6 0 3.37 2.77 6.08 6.138 6.01l.351-.01h1.761v2.3l5.087-2.81c1.951-1.08 3.163-3.13 3.163-5.36 0-3.39-2.744-6.13-6.129-6.13H9.756z"></path>
+                        </svg>
+                        <span id="modalReplies">0</span>
+                    </div>
+                </div>
+                <div class="tweet-detail-footer-actions">
+                    <button class="tweet-detail-action-btn" id="modalCopyBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        复制链接
+                    </button>
+                    <a class="tweet-detail-action-btn" id="modalOpenBtn" target="_blank" rel="noopener">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"></path>
+                        </svg>
+                        打开原推文
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

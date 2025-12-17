@@ -13,18 +13,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Helper function to check if text contains a Twitter/X URL
-    function extractTwitterUrl(text) {
-        if (!text) return null;
-        const match = text.match(/https?:\/\/(twitter\.com|x\.com)\/\w+\/status\/\d+/);
-        return match ? match[0] : null;
+    // Helper function to extract all Twitter/X URLs from text
+    function extractTwitterUrls(text) {
+        if (!text) return [];
+        const regex = /https?:\/\/(?:twitter\.com|x\.com)\/[a-zA-Z0-9_]+\/status\/\d+/gi;
+        const matches = text.match(regex) || [];
+        // Remove duplicates and normalize to x.com
+        return [...new Set(matches.map(url => url.replace('twitter.com', 'x.com')))];
     }
 
     // Helper function to highlight the button when URL is detected
-    function highlightButton(source) {
+    function highlightButton(source, urlCount) {
         quickAddBtn.style.background = 'linear-gradient(135deg, #1d9bf0 0%, #0c7abf 100%)';
         quickAddBtn.style.boxShadow = '0 4px 12px rgba(29, 155, 240, 0.4)';
-        quickAddBtn.textContent = '⭐ Add This Tweet';
+
+        if (urlCount > 1) {
+            quickAddBtn.textContent = `⭐ Add ${urlCount} Tweets`;
+        } else {
+            quickAddBtn.textContent = '⭐ Add This Tweet';
+        }
 
         const existingHint = document.querySelector('.url-detected-hint');
         if (existingHint) existingHint.remove();
@@ -32,11 +39,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         const hint = document.createElement('div');
         hint.className = 'url-detected-hint';
         hint.style.cssText = 'text-align: center; color: #1d9bf0; font-size: 12px; margin-top: 8px; font-weight: 600;';
-        hint.textContent = source === 'clipboard' ? '✓ URL from clipboard! Click to add' : '✓ Tweet detected! Click to add';
+
+        if (urlCount > 1) {
+            hint.textContent = source === 'clipboard'
+                ? `✓ ${urlCount} URLs from clipboard! Click to add all`
+                : `✓ ${urlCount} Tweets detected! Click to add all`;
+        } else {
+            hint.textContent = source === 'clipboard'
+                ? '✓ URL from clipboard! Click to add'
+                : '✓ Tweet detected! Click to add';
+        }
+
         quickAddBtn.parentElement.appendChild(hint);
     }
 
     let urlDetectedFromPage = false;
+    let detectedUrls = []; // Store detected URLs
 
     // Check if current tab is a tweet detail page
     try {
@@ -46,9 +64,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tweetUrlMatch) {
                 // This is a tweet detail page!
                 const tweetUrl = tab.url.split('?')[0]; // Remove query params
+                detectedUrls = [tweetUrl];
                 manualUrlInput.value = tweetUrl;
                 urlDetectedFromPage = true;
-                highlightButton('page');
+                highlightButton('page', 1);
 
                 // Auto-submit if on tweet page
                 setTimeout(() => {
@@ -64,12 +83,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!urlDetectedFromPage) {
         try {
             const clipboardText = await navigator.clipboard.readText();
-            const twitterUrl = extractTwitterUrl(clipboardText);
-            if (twitterUrl) {
-                manualUrlInput.value = twitterUrl;
-                highlightButton('clipboard');
+            const twitterUrls = extractTwitterUrls(clipboardText);
+            if (twitterUrls.length > 0) {
+                detectedUrls = twitterUrls;
+                // Show all URLs in textarea (one per line)
+                manualUrlInput.value = twitterUrls.join('\n');
+                highlightButton('clipboard', twitterUrls.length);
 
-                // Auto-submit if clipboard contains Twitter URL
+                // Auto-submit if clipboard contains Twitter URLs
                 setTimeout(() => {
                     quickAddBtn.click();
                 }, 300); // Small delay to show the UI update
@@ -80,23 +101,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Quick add manual URL
+    // Quick add manual URL(s)
     quickAddBtn.addEventListener('click', async () => {
-        const url = manualUrlInput.value.trim();
+        const inputText = manualUrlInput.value.trim();
 
-        if (!url) {
-            showStatus(addStatus, 'Please enter a tweet URL', 'error');
+        if (!inputText) {
+            showStatus(addStatus, 'Please enter tweet URL(s)', 'error');
             return;
         }
 
-        // Validate Twitter/X URL
-        if (!url.match(/^https?:\/\/(twitter\.com|x\.com)\/\w+\/status\/\d+/)) {
-            showStatus(addStatus, 'Invalid Twitter/X URL', 'error');
+        // Extract all URLs from input
+        const urls = extractTwitterUrls(inputText);
+
+        if (urls.length === 0) {
+            showStatus(addStatus, 'No valid Twitter/X URLs found', 'error');
             return;
         }
 
         quickAddBtn.disabled = true;
-        quickAddBtn.textContent = 'Adding...';
+        quickAddBtn.textContent = urls.length > 1 ? `Adding ${urls.length} tweets...` : 'Adding...';
 
         try {
             const endpoint = defaultEndpoint;
@@ -115,7 +138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 },
                 body: JSON.stringify({
                     date: today,
-                    urls: [url]
+                    urls: urls // Send all URLs
                 })
             });
 
@@ -124,15 +147,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             const data = await response.json();
-            showStatus(addStatus, '✓ Added to collection!', 'success');
+            const message = urls.length > 1
+                ? `✓ Added ${urls.length} tweets to collection!`
+                : '✓ Added to collection!';
+            showStatus(addStatus, message, 'success');
             manualUrlInput.value = '';
+            detectedUrls = [];
 
         } catch (error) {
-            console.error('Error adding URL:', error);
+            console.error('Error adding URL(s):', error);
             showStatus(addStatus, '✗ Failed to add. Check your API endpoint.', 'error');
         } finally {
             quickAddBtn.disabled = false;
             quickAddBtn.textContent = 'Add to Collection';
+            // Reset button style
+            quickAddBtn.style.background = '';
+            quickAddBtn.style.boxShadow = '';
+            const hint = document.querySelector('.url-detected-hint');
+            if (hint) hint.remove();
         }
     });
 
@@ -147,9 +179,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 3000);
     }
 
-    // Allow Enter key to submit
-    manualUrlInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
+    // Allow Ctrl/Cmd+Enter to submit (Enter alone for line breaks)
+    manualUrlInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
             quickAddBtn.click();
         }
     });

@@ -42,17 +42,27 @@
     }
 
     // Add tweet to hot content via API
-    async function addToHotContent(tweetUrl, button, tweetId) {
+    async function addToHotContent(tweetUrl, menuItem, tweetId) {
         if (addedTweets.has(tweetId)) {
             showNotification('Already added to collection', 'info');
             return;
         }
 
-        // Disable button and show loading state
-        button.disabled = true;
-        button.classList.add('loading');
-        const originalHTML = button.innerHTML;
-        button.innerHTML = '<span>Adding...</span>';
+        if (menuItem.classList.contains('loading') || menuItem.classList.contains('added')) {
+            return;
+        }
+
+        const labelElement = menuItem.querySelector('.hot-content-menu-label');
+        const originalLabel = labelElement ? labelElement.textContent : menuItem.textContent;
+
+        menuItem.classList.add('loading');
+        menuItem.setAttribute('aria-disabled', 'true');
+
+        if (labelElement) {
+            labelElement.textContent = 'Adding...';
+        } else {
+            menuItem.textContent = 'Adding...';
+        }
 
         try {
             // Get current date in local timezone (YYYY-MM-DD format)
@@ -92,27 +102,28 @@
 
             // Mark as added
             addedTweets.add(tweetId);
-            button.classList.remove('loading');
-            button.classList.add('added');
-            button.innerHTML = `
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-        </svg>
-        <span>Added!</span>
-      `;
+            menuItem.classList.remove('loading');
+            menuItem.classList.add('added');
+
+            if (labelElement) {
+                labelElement.textContent = '✓ Added to Hot Content';
+            } else {
+                menuItem.textContent = '✓ Added to Hot Content';
+            }
 
             showNotification('✓ Added to hot content!', 'success');
 
-            // Keep the "Added" state
-            setTimeout(() => {
-                button.disabled = true;
-            }, 100);
-
         } catch (error) {
             console.error('Error adding to hot content:', error);
-            button.disabled = false;
-            button.classList.remove('loading');
-            button.innerHTML = originalHTML;
+            menuItem.classList.remove('loading');
+            menuItem.removeAttribute('aria-disabled');
+
+            if (labelElement) {
+                labelElement.textContent = originalLabel;
+            } else {
+                menuItem.textContent = originalLabel;
+            }
+
             showNotification('✗ Failed to add. Please try again.', 'error');
         }
     }
@@ -209,31 +220,44 @@
 
         // Create our menu item
         const menuItem = document.createElement('div');
-        menuItem.className = 'hot-content-menu-item css-175oi2r r-1loqt21 r-18u37iz r-1mmae3n r-3pj75a r-13qz1uu r-o7ynqc r-6416eg r-1ny4l3l';
+        menuItem.className = 'hot-content-menu-item';
         menuItem.setAttribute('role', 'menuitem');
         menuItem.setAttribute('tabindex', '0');
 
         const isAdded = addedTweets.has(tweetId);
 
-        menuItem.innerHTML = `
-            <div class="css-175oi2r r-1777fci r-faml9v">
-                <svg viewBox="0 0 24 24" aria-hidden="true" class="r-4qtqp9 r-yyyyoo r-1xvli5t r-dnmrzs r-bnwqim r-lrvibr r-m6rgpd r-1nao33i r-1q142lx">
-                    <g><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></g>
-                </svg>
-            </div>
-            <div class="css-175oi2r r-16y2uox r-1wbh5a2">
-                <div dir="ltr" class="css-146c3p1 r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-a023e6 r-rjixqe r-b88u0q" style="color: rgb(231, 233, 234);">
-                    <span class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3">
-                        ${isAdded ? '✓ Added to Hot Content' : 'Add to Hot Content'}
-                    </span>
-                </div>
-            </div>
+        const iconWrapper = document.createElement('div');
+        iconWrapper.className = 'hot-content-menu-icon';
+        iconWrapper.setAttribute('aria-hidden', 'true');
+        iconWrapper.innerHTML = `
+            <svg viewBox="0 0 24 24">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"></path>
+            </svg>
         `;
+
+        const textWrapper = document.createElement('div');
+        textWrapper.className = 'hot-content-menu-text';
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'hot-content-menu-label';
+        labelSpan.textContent = isAdded ? '✓ Added to Hot Content' : 'Add to Hot Content';
+        textWrapper.appendChild(labelSpan);
+
+        menuItem.appendChild(iconWrapper);
+        menuItem.appendChild(textWrapper);
+
+        if (isAdded) {
+            menuItem.classList.add('added');
+            menuItem.setAttribute('aria-disabled', 'true');
+        }
 
         // Add click handler
         menuItem.addEventListener('click', async (e) => {
             e.preventDefault();
             e.stopPropagation();
+
+            if (menuItem.classList.contains('loading') || menuItem.classList.contains('added')) {
+                return;
+            }
 
             // Close the menu by clicking outside
             document.body.click();

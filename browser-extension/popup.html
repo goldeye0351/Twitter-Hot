@@ -48,7 +48,8 @@
         }
 
         input[type="text"],
-        input[type="url"] {
+        input[type="url"],
+        textarea {
             width: 100%;
             padding: 10px 12px;
             background: #192734;
@@ -57,9 +58,16 @@
             color: #ffffff;
             font-size: 14px;
             font-family: inherit;
+            resize: vertical;
         }
 
-        input:focus {
+        textarea {
+            min-height: 80px;
+            line-height: 1.5;
+        }
+
+        input:focus,
+        textarea:focus {
             outline: none;
             border-color: #1d9bf0;
         }
@@ -150,8 +158,11 @@
 
     <div class="quick-add-section">
         <div class="section">
-            <label for="manualUrl">Quick Add URL</label>
-            <input type="url" id="manualUrl" placeholder="https://x.com/user/status/123456789">
+            <label for="manualUrl">Tweet URL(s) - One per line</label>
+            <textarea id="manualUrl" placeholder="https://x.com/user/status/123...&#10;https://x.com/user/status/456...&#10;(Paste multiple URLs)"></textarea>
+            <div style="font-size: 11px; color: #536471; margin-top: 4px;">
+                💡 Tip: Press Ctrl+Enter (⌘+Enter on Mac) to submit
+            </div>
         </div>
         <button id="quickAdd">Add to Collection</button>
         <div id="addStatus" class="status"></div>
@@ -161,7 +172,8 @@
 
     <div class="info-box">
         💡 <strong>How to use:</strong><br>
-        Browse Twitter/X and click the "Add to Hot" button on any tweet you want to save to your collection.
+        • Browse Twitter/X and click "Add to Hot" on any tweet<br>
+        • Or paste multiple URLs here (auto-detected from clipboard)
     </div>
 
     <div class="divider"></div>
