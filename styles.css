@@ -1036,9 +1036,9 @@ body.viewer-open {
 }
 
 .date-tab {
-    padding: 0.5rem 1rem;
+    padding: 0.3rem 1rem;
     margin: 0 0.25rem;
-    border-radius: 6px;
+    border-radius: 76px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid transparent;
     color: var(--text-secondary);

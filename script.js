@@ -119,6 +119,66 @@ function showCopyFeedback(button, success) {
     }, 1500);
 }
 
+/**
+ * Fetch detailed tweet information including media
+ * @param {string} tweetId - Tweet ID
+ * @param {AbortSignal} signal - Abort signal
+ * @returns {Promise} - Resolves with {images, fullData}
+ */
+function fetchTweetMedia(tweetId, signal = null) {
+    if (!tweetId) return Promise.resolve({ images: [], fullData: null });
+
+    // Single Source of Truth: Check cache first
+    const cached = tweetMediaCache.get(tweetId);
+    if (cached) {
+        if (cached.data) {
+            return Promise.resolve({
+                images: cached.images,
+                fullData: cached.data
+            });
+        }
+        if (cached.promise) {
+            return cached.promise;
+        }
+    }
+
+    const fetchOptions = signal ? { signal } : {};
+    const promise = apiFetch(`/api/tweet_info?id=${tweetId}`, fetchOptions)
+        .then(res => {
+            if (!res.ok) throw new Error(`API error: ${res.status}`);
+            return res.json();
+        })
+        .then(data => {
+            const images = extractImageUrlsFromTweetInfo(data);
+
+            // Only update cache if our promise is still the current one (avoid race condition)
+            const currentCache = tweetMediaCache.get(tweetId);
+            if (currentCache && currentCache.promise === promise) {
+                tweetMediaCache.set(tweetId, { images, data });
+            }
+            return {
+                images,
+                fullData: data
+            };
+        })
+        .catch(error => {
+            if (error.name === 'AbortError') {
+                console.log('[fetchTweetMedia] Request aborted for ID:', tweetId);
+            } else {
+                console.error('[fetchTweetMedia] Error:', tweetId, error);
+            }
+            // If it failed/aborted, remove from cache so it can be retried
+            const currentCache = tweetMediaCache.get(tweetId);
+            if (currentCache && currentCache.promise === promise) {
+                tweetMediaCache.delete(tweetId);
+            }
+            throw error;
+        });
+
+    tweetMediaCache.set(tweetId, { promise });
+    return promise;
+}
+
 // Render content based on current view mode
 function renderContent(append = false) {
     const contentList = document.getElementById('contentList');
@@ -805,8 +865,14 @@ async function openGalleryTweetDetail(tweetId, url, clickedIndex) {
     }
 }
 
-// Preload adjacent cards for smoother navigation
-function preloadAdjacentCards(cards, currentIndex, range = 3) {
+/**
+ * Preload adjacent cards for smoother navigation
+ * @param {Array} cards - Visible cards
+ * @param {number} currentIndex - Current index
+ * @param {number} range - Range to preload
+ * @param {AbortSignal} signal - Abort signal
+ */
+function preloadAdjacentCards(cards, currentIndex, range = 3, signal = null) {
     const indices = [];
 
     // Preload cards before and after current card
@@ -1365,6 +1431,7 @@ let isLoadingMore = false;
 let hasMoreDates = true;
 let loadedDates = new Set(); // Track loaded dates to avoid duplicates
 window.preloadSessionId = 0; // Control background loading chain
+window.currentPreloadController = null; // Controller to abort previous background requests
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -1446,15 +1513,22 @@ function setupInfiniteScroll() {
  * @param {number} sessionId - Current background load session ID
  */
 function loadNextDate(lookaheadCount = 1, sessionId = null) {
-    // If sessionId is provided, ONLY continue if it matches current global ID
+    // If sessionId is provided, it must match current global ID
     if (sessionId !== null && sessionId !== window.preloadSessionId) {
-        console.log('[Background Load] Session expired, stopping chain');
         return;
+    }
+
+    // If this is a new session start, or if we want to be safe, cancel previous requests
+    if (sessionId !== null && (window.currentPreloadController === null || sessionId > 0)) {
+        // We only reset controller if we are starting a sequence
+        if (lookaheadCount > 10) { // arbitrary number to detect "full sequence" vs "scroll trigger"
+            if (window.currentPreloadController) window.currentPreloadController.abort();
+            window.currentPreloadController = new AbortController();
+        }
     }
 
     // Check if already loading or no more dates
     if (isLoadingMore || !hasMoreDates) {
-        // If we are already loading but still have lookahead budget, we'll be triggered again by loadContentForDate's completion
         return;
     }
 
@@ -1486,6 +1560,8 @@ function loadNextDate(lookaheadCount = 1, sessionId = null) {
     showLoadingIndicator();
 
     // Load content for next date
+    const signal = window.currentPreloadController ? window.currentPreloadController.signal : null;
+
     loadContentForDate(nextDate, true, () => {
         // Callback after date content is loaded and elements are created
         if (lookaheadCount > 1 && hasMoreDates) {
@@ -1494,7 +1570,7 @@ function loadNextDate(lookaheadCount = 1, sessionId = null) {
                 loadNextDate(lookaheadCount - 1, sessionId);
             }, 500);
         }
-    });
+    }, signal);
 }
 
 // Load next date for modal navigation - returns a Promise with new cards
@@ -1723,8 +1799,21 @@ function syncMobileNavDates() {
         tab.addEventListener('click', () => {
             const date = tab.getAttribute('data-date');
             currentDate = date;
+
+            // SSOT: Manage AbortController for preloading
+            window.preloadSessionId = Date.now();
+            if (window.currentPreloadController) window.currentPreloadController.abort();
+            window.currentPreloadController = new AbortController();
+
+            const currentSession = window.preloadSessionId;
+            const signal = window.currentPreloadController.signal;
+
             selectDateTab(date);
-            loadContentForDate(date);
+            loadContentForDate(date, false, () => {
+                if (window.preloadSessionId === currentSession) {
+                    loadNextDate(availableDates.length, currentSession);
+                }
+            }, signal);
 
             // Update URL parameter
             const url = new URL(window.location);
@@ -1820,17 +1909,21 @@ function loadAvailableDates() {
                 // Load content for the current date
                 if (currentDate) {
                     window.preloadSessionId = Date.now();
+
+                    // SSOT: Manage AbortController for preloading
+                    if (window.currentPreloadController) window.currentPreloadController.abort();
+                    window.currentPreloadController = new AbortController();
+
                     const currentSession = window.preloadSessionId;
+                    const signal = window.currentPreloadController.signal;
 
                     loadContentForDate(currentDate, false, () => {
-                        // After initial date is loaded, start loading everything else in background
-                        console.log('[Init] Initial content loaded, starting sequential background preloading...');
-                        setTimeout(() => {
-                            if (hasMoreDates) {
-                                loadNextDate(availableDates.length, currentSession);
-                            }
-                        }, 2000); // Wait 2s to ensure initial rendering is smooth
-                    });
+                        // After initial date is loaded, start loading remaining dates sequentially
+                        if (hasMoreDates && window.preloadSessionId === currentSession) {
+                            console.log('[Init] Initial content loaded, preloading next 3 days...');
+                            loadNextDate(3, currentSession);
+                        }
+                    }, signal);
                 }
             })
             .catch(error => {
@@ -1876,7 +1969,13 @@ function renderDateTabs() {
 
             // Cancel previous background loads and start a new one from new date
             window.preloadSessionId = Date.now();
+
+            // SSOT: Manage AbortController for preloading
+            if (window.currentPreloadController) window.currentPreloadController.abort();
+            window.currentPreloadController = new AbortController();
+
             const currentSession = window.preloadSessionId;
+            const signal = window.currentPreloadController.signal;
 
             // Sync current index
             const idx = availableDates.findIndex(d => d.date === date);
@@ -1884,27 +1983,23 @@ function renderDateTabs() {
                 currentDateIndex = idx;
                 console.log('[Tabs] Current date index updated to:', currentDateIndex);
             }
-
             selectDateTab(date);
             loadContentForDate(date, false, () => {
-                // Restart sequential preloading from new position
-                setTimeout(() => {
-                    if (currentSession === window.preloadSessionId) { // Verify session still active
-                        loadNextDate(availableDates.length, currentSession);
-                    }
-                }, 2000);
-            });
+                // Restart sequential preloading from new position immediately
+                if (window.preloadSessionId === currentSession) {
+                    loadNextDate(3, currentSession);
+                }
+            }, signal);
+
+            // Sync mobile nav selection
+            syncMobileNavSelection(date);
 
             // Update URL parameter
             const url = new URL(window.location);
             url.searchParams.set('date', date);
             window.history.replaceState({}, '', url);
-
-            // Sync mobile nav selection
-            syncMobileNavSelection(date);
         });
     });
-
     // Sync date tabs to mobile navigation
     syncMobileNavDates();
 }
@@ -2009,8 +2104,14 @@ function showToast(message, type = 'info', duration = 3000) {
     }, duration);
 }
 
-// Load content for specific date
-function loadContentForDate(date, append = false, callback = null) {
+/**
+ * Load content for specific date
+ * @param {string} date - Date string
+ * @param {boolean} append - Whether to append or clear
+ * @param {Function} callback - Success callback
+ * @param {AbortSignal} signal - Abort signal (Linus Mode: for request cancellation)
+ */
+function loadContentForDate(date, append = false, callback = null, signal = null) {
     // First check if we're on the main page
     const contentList = document.getElementById('contentList');
     const emptyState = document.getElementById('emptyState');
@@ -2034,7 +2135,9 @@ function loadContentForDate(date, append = false, callback = null) {
     const url = `/api/data?date=${encodeURIComponent(date)}`;
     const startIndex = tweetUrls.length; // Save current length for append
 
-    return apiFetch(url)
+    const fetchOptions = signal ? { signal } : {};
+
+    return apiFetch(url, fetchOptions)
         .then(r => {
             if (!r.ok) {
                 throw new Error(`HTTP error! status: ${r.status}`);
@@ -2090,6 +2193,14 @@ function loadContentForDate(date, append = false, callback = null) {
                 }
                 return reversedUrls.length;
             }
+            return 0;
+        })
+        .catch(error => {
+            if (error.name === 'AbortError') {
+                console.log('[Content Load] Fetch aborted for date:', date);
+                return 0;
+            }
+            console.error('Error loading content for date:', date, error);
 
             // Try to load from localStorage as fallback
             const savedData = localStorage.getItem(storageKey);
@@ -2097,114 +2208,40 @@ function loadContentForDate(date, append = false, callback = null) {
                 try {
                     const u = JSON.parse(savedData);
                     if (Array.isArray(u) && u.length > 0) {
-                        // Reverse array to show newest content first
                         const reversedUrls = u.reverse();
                         tweetUrls.push(...reversedUrls);
-
                         if (append) {
-                            // Append mode: render only new content
                             const currentView = localStorage.getItem('viewMode') || 'list';
                             if (currentView === 'gallery') {
                                 renderImageGallery(contentList, true, startIndex, date);
                             } else {
                                 renderTweetList(contentList, true, startIndex, date);
                             }
-                            isLoadingMore = false;
-                            hideLoadingIndicator();
-                            console.log('[Infinite Scroll] Content loaded from cache (fallback 1) for', date);
-
-                            // Execute callback for sequential preloading
-                            if (typeof callback === 'function') {
-                                callback();
-                            }
-                        } else {
-                            // Initial mode: render all content
-                            renderContent(false);
-                            emptyState.style.display = 'none';
-                        }
-
-                        showSourceToast('cache');
-
-                        // Update date tab selection only when not in append mode
-                        if (!append) {
-                            selectDateTab(date);
-                        }
-                        return reversedUrls.length;
-                    }
-                } catch (e) { }
-            }
-
-            if (!append) {
-                // Show empty state only for initial load
-                contentList.innerHTML = '';
-                emptyState.style.display = 'block';
-            } else {
-                isLoadingMore = false;
-                hideLoadingIndicator();
-                console.log('[Infinite Scroll] No data available for', date);
-            }
-
-            // Still update the selected tab even if no content (only when not appending)
-            if (!append) {
-                selectDateTab(date);
-            }
-            return 0;
-        })
-        .catch(error => {
-            console.error('Error loading content for date:', date, error);
-
-            const savedData = localStorage.getItem(storageKey);
-            if (savedData) {
-                try {
-                    const u = JSON.parse(savedData);
-                    if (Array.isArray(u) && u.length > 0) {
-                        // Reverse array to show newest content first
-                        const reversedUrls = u.reverse();
-                        tweetUrls.push(...reversedUrls);
-
-                        if (append) {
-                            // Append mode: render only new content
-                            const currentView = localStorage.getItem('viewMode') || 'list';
-                            if (currentView === 'gallery') {
-                                renderImageGallery(contentList, true, startIndex, date);
-                            } else {
-                                renderTweetList(contentList, true, startIndex, date);
-                            }
-                            isLoadingMore = false;
-                            hideLoadingIndicator();
                             console.log('[Infinite Scroll] Content loaded from cache (error fallback) for', date);
                         } else {
-                            // Initial mode: render all content
                             renderContent(false);
                             emptyState.style.display = 'none';
                         }
-
                         showSourceToast('cache');
-
-                        // Update date tab selection only when not in append mode
-                        if (!append) {
-                            selectDateTab(date);
-                        }
+                        if (!append) selectDateTab(date);
                         return reversedUrls.length;
                     }
                 } catch (e) { }
             }
 
             if (!append) {
-                // Show error state only for initial load
                 contentList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Failed to load. Please refresh.</div>';
                 emptyState.style.display = 'none';
             } else {
-                isLoadingMore = false;
-                hideLoadingIndicator();
                 console.log('[Infinite Scroll] Failed to load content for', date);
             }
-
-            // Still update the selected tab even if no content (only when not appending)
-            if (!append) {
-                selectDateTab(date);
-            }
             return 0;
+        })
+        .finally(() => {
+            if (append) {
+                isLoadingMore = false;
+                hideLoadingIndicator();
+            }
         });
 }
 

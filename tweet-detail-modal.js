@@ -11,8 +11,8 @@ window.isPreloading = window.isPreloading ?? false;
 
 // Expose updateThumbnail globally for script.js preloading access
 window.updateThumbnail = (index) => {
-    if (typeof updateThumbnail === 'function') {
-        updateThumbnail(index);
+    if (typeof updateThumbnailUI === 'function') {
+        updateThumbnailUI(index);
     }
 };
 
@@ -42,6 +42,14 @@ function openTweetDetail(data, url, index, cards) {
         console.log('[Modal] Pre-populating card dataset with passed data');
         card.dataset.tweetData = JSON.stringify(data);
         delete card.dataset.loading;
+
+        // Linus Mode: SSOT - Sync passed data to global cache immediately
+        if (typeof window.tweetMediaCache !== 'undefined' && typeof window.extractImageUrlsFromTweetInfo === 'function') {
+            const tweetId = card.dataset.tweetId;
+            const images = window.extractImageUrlsFromTweetInfo(data);
+            window.tweetMediaCache.set(tweetId, { images, data });
+            console.log('[Modal SSOT] Synced passed data to global cache for tweetId:', tweetId);
+        }
     }
 
     // Generate all thumbnails
@@ -148,21 +156,66 @@ function openTweetDetail(data, url, index, cards) {
 }
 
 /**
+ * Get Tweet Data from various sources (SSOT Helper)
+ * @param {number} index - Card index
+ * @returns {Object|null} - Tweet data
+ */
+function getTweetDataForIndex(index) {
+    const card = window.visibleCards[index];
+    if (!card) return null;
+    const tweetId = card.dataset.tweetId;
+
+    // Priority 1: Global Memory Cache (The Authority)
+    if (typeof window.tweetMediaCache !== 'undefined') {
+        const cached = window.tweetMediaCache.get(tweetId);
+        if (cached && cached.data) return cached.data;
+    }
+
+    // Priority 2: DOM Dataset (The Local Cache)
+    if (card.dataset.tweetData) {
+        try {
+            return JSON.parse(card.dataset.tweetData);
+        } catch (e) {
+            console.error('[Modal] Failed to parse dataset data:', e);
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Generate thumbnail HTML content
+ * @param {Object} cardData - Tweet data
+ * @param {string} loadingState - Loading state string
+ * @returns {string} - HTML content
+ */
+function getThumbnailHtml(cardData, loadingState) {
+    if (cardData) {
+        if (cardData.media_extended && cardData.media_extended.length > 0) {
+            const firstMedia = cardData.media_extended[0];
+            return `<img src="${firstMedia.url || firstMedia.thumbnail_url}" alt="Thumbnail">`;
+        } else if (cardData.mediaURLs && cardData.mediaURLs.length > 0) {
+            return `<img src="${cardData.mediaURLs[0]}" alt="Thumbnail">`;
+        } else {
+            return `<div class="thumbnail-item-placeholder">${(cardData.text || '').substring(0, 20)}</div>`;
+        }
+    }
+
+    if (loadingState === 'true') {
+        return `<div class="thumbnail-item-placeholder"><div class="loading-spinner small"></div></div>`;
+    }
+
+    return `<div class="thumbnail-item-placeholder">?</div>`;
+}
+
+/**
  * Generate all thumbnails
  * @param {number} startIndex - Optional start index for incremental update (only add new thumbnails after this index)
  */
 function generateThumbnails(startIndex = 0) {
     const thumbnailStrip = document.getElementById('thumbnailStrip');
+    if (startIndex === 0) thumbnailStrip.innerHTML = '';
 
-    // If startIndex is 0, clear and rebuild everything (initial load)
-    // Otherwise, keep existing thumbnails and only add new ones
-    if (startIndex === 0) {
-        thumbnailStrip.innerHTML = '';
-    } else {
-        console.log('[Thumbnails] Incremental update from index', startIndex);
-    }
-
-    // Generate thumbnails starting from startIndex
     for (let index = startIndex; index < window.visibleCards.length; index++) {
         const card = window.visibleCards[index];
         if (!card) continue;
@@ -171,94 +224,12 @@ function generateThumbnails(startIndex = 0) {
         const checkbox = card.querySelector('.tweet-check-input');
         const isSelected = checkbox && checkbox.checked;
 
-        // Create thumbnail element
         const thumbnailItem = document.createElement('div');
         thumbnailItem.className = `thumbnail-item${isCurrent ? ' active' : ''}${!isSelected ? ' unselected' : ''}`;
         thumbnailItem.dataset.index = index;
 
-        let thumbnailContent = '';
-
-        // Priority 1: Check if full tweet data is loaded
-        if (card.dataset.tweetData) {
-            try {
-                const cardData = JSON.parse(card.dataset.tweetData);
-
-                // Get first image as thumbnail
-                if (cardData.media_extended && cardData.media_extended.length > 0) {
-                    const firstMedia = cardData.media_extended[0];
-                    if (firstMedia.type === 'image') {
-                        thumbnailContent = `<img src="${firstMedia.url}" alt="Tweet thumbnail">`;
-                    } else if (firstMedia.type === 'video' && firstMedia.thumbnail_url) {
-                        thumbnailContent = `<img src="${firstMedia.thumbnail_url}" alt="Video thumbnail">`;
-                    } else {
-                        thumbnailContent = `<div class="thumbnail-item-placeholder">Video</div>`;
-                    }
-                } else if (cardData.mediaURLs && cardData.mediaURLs.length > 0) {
-                    thumbnailContent = `<img src="${cardData.mediaURLs[0]}" alt="Tweet thumbnail">`;
-                } else {
-                    // No images, show text preview
-                    const textPreview = (cardData.text || 'No content').substring(0, 20);
-                    thumbnailContent = `<div class="thumbnail-item-placeholder">${textPreview}</div>`;
-                }
-            } catch (err) {
-                console.error('Failed to parse thumbnail data:', err);
-                thumbnailContent = `<div class="thumbnail-item-placeholder">Error</div>`;
-            }
-        }
-        // Priority 2: Check if cached media data is available (from Gallery)
-        else if (card.dataset.cachedMedia) {
-            try {
-                const cachedMedia = JSON.parse(card.dataset.cachedMedia);
-                if (cachedMedia && cachedMedia.length > 0) {
-                    const firstMedia = cachedMedia[0];
-                    const mediaUrl = typeof firstMedia === 'string' ? firstMedia : firstMedia.url;
-                    const mediaType = typeof firstMedia === 'object' ? firstMedia.type : 'image';
-
-                    if (mediaType === 'video') {
-                        thumbnailContent = `<img src="${mediaUrl}" alt="Video thumbnail">`;
-                    } else {
-                        thumbnailContent = `<img src="${mediaUrl}" alt="Tweet thumbnail">`;
-                    }
-                } else {
-                    thumbnailContent = `<div class="thumbnail-item-placeholder">No media</div>`;
-                }
-            } catch (err) {
-                console.error('Failed to parse cached media:', err);
-                thumbnailContent = `<div class="thumbnail-item-placeholder">?</div>`;
-            }
-        }
-        // Priority 3: Check global cache if data exists but not yet on dataset
-        else if (card.dataset.loading === 'true' && typeof window.tweetMediaCache !== 'undefined') {
-            const cached = window.tweetMediaCache.get(card.dataset.tweetId);
-            if (cached && cached.data) {
-                try {
-                    const cardData = cached.data;
-                    card.dataset.tweetData = JSON.stringify(cardData);
-                    delete card.dataset.loading;
-
-                    if (cardData.media_extended && cardData.media_extended.length > 0) {
-                        const firstMedia = cardData.media_extended[0];
-                        thumbnailContent = `<img src="${firstMedia.url || firstMedia.thumbnail_url}" alt="Tweet thumbnail">`;
-                    } else if (cardData.mediaURLs && cardData.mediaURLs.length > 0) {
-                        thumbnailContent = `<img src="${cardData.mediaURLs[0]}" alt="Tweet thumbnail">`;
-                    } else {
-                        thumbnailContent = `<div class="thumbnail-item-placeholder">${(cardData.text || '').substring(0, 20)}</div>`;
-                    }
-                } catch (err) {
-                    thumbnailContent = `<div class="thumbnail-item-placeholder"><div class="loading-spinner small"></div></div>`;
-                }
-            } else {
-                thumbnailContent = `<div class="thumbnail-item-placeholder"><div class="loading-spinner small"></div></div>`;
-            }
-        }
-        // Priority 4: Loading marker
-        else if (card.dataset.loading === 'true') {
-            thumbnailContent = `<div class="thumbnail-item-placeholder"><div class="loading-spinner small"></div></div>`;
-        }
-        // Priority 5: Error state
-        else {
-            thumbnailContent = `<div class="thumbnail-item-placeholder">?</div>`;
-        }
+        const cardData = getTweetDataForIndex(index);
+        const thumbnailContent = getThumbnailHtml(cardData, card.dataset.loading);
 
         thumbnailItem.innerHTML = `
             ${thumbnailContent}
@@ -270,15 +241,9 @@ function generateThumbnails(startIndex = 0) {
             </div>` : ''}
         `;
 
-        // Click thumbnail to switch
-        thumbnailItem.addEventListener('click', () => {
-            navigateToIndex(index);
-        });
-
+        thumbnailItem.addEventListener('click', () => navigateToIndex(index));
         thumbnailStrip.appendChild(thumbnailItem);
     }
-
-    // Scroll to current thumbnail
     scrollToActiveThumbnail();
 }
 
@@ -286,7 +251,7 @@ function generateThumbnails(startIndex = 0) {
  * Update a specific thumbnail content
  * @param {number} index - The index of the thumbnail to update
  */
-function updateThumbnail(index) {
+function updateThumbnailUI(index) {
     const thumbnailStrip = document.getElementById('thumbnailStrip');
     const thumbnailItem = thumbnailStrip.querySelector(`.thumbnail-item[data-index="${index}"]`);
     if (!thumbnailItem) return;
@@ -426,91 +391,70 @@ async function updateMainCard(index) {
     const card = window.visibleCards[index];
     if (!card) return;
 
-    // Check if card data is already available in the dataset
+    const itemTweetId = card.dataset.tweetId;
+
+    // Linus Mode: Single Source of Truth - Prioritize Global Cache
+    if (typeof window.tweetMediaCache !== 'undefined') {
+        const cached = window.tweetMediaCache.get(itemTweetId);
+        if (cached && cached.data) {
+            console.log('[Modal SSOT] Using global cache for index:', index);
+            // Sync to dataset for legacy components
+            card.dataset.tweetData = JSON.stringify(cached.data);
+            if (cached.images) card.dataset.cachedMedia = JSON.stringify(cached.images);
+            delete card.dataset.loading;
+
+            updateCardDisplay(index);
+            updateThumbnailUI(index);
+            return;
+        }
+    }
+
+    // Fallback: Check dataset if cache missed but dataset has it
     if (card.dataset.tweetData) {
         console.log('[Modal] Using existing dataset for index:', index);
         updateCardDisplay(index);
         return;
     }
 
-    // Check if card data needs to be loaded
-    if (card.dataset.loading === 'true' || !card.dataset.tweetData) {
-        const itemTweetId = card.dataset.tweetId;
-        const checkbox = card.querySelector('.tweet-check-input');
-        const cardUrl = card.dataset.tweetUrl || (checkbox ? checkbox.value : '');
+    // Load data if missing
+    showCardLoading();
 
-        console.log('[Modal] Card data missing, checking cache...');
+    try {
+        let tweetData;
 
-        // Check global cache first to avoid re-fetching
-        if (typeof window.tweetMediaCache !== 'undefined') {
-            const cached = window.tweetMediaCache.get(itemTweetId);
-            if (cached && cached.data) {
-                console.log('[Modal] Using memory cache for tweetId:', itemTweetId);
-                card.dataset.tweetData = JSON.stringify(cached.data);
-                if (cached.images) {
-                    card.dataset.cachedMedia = JSON.stringify(cached.images);
-                }
-                delete card.dataset.loading;
-                updateCardDisplay(index);
-                // Also update thumbnail to remove spinner
-                updateThumbnail(index);
-                return;
+        // Use centralized fetch function if available
+        if (typeof window.fetchTweetMedia === 'function') {
+            const result = await window.fetchTweetMedia(itemTweetId);
+            tweetData = result.fullData;
+            if (result.images) {
+                card.dataset.cachedMedia = JSON.stringify(result.images);
             }
+        } else {
+            // Direct fetch fallback
+            const fetchFn = typeof window.apiFetch === 'function' ? window.apiFetch : fetch;
+            const response = await fetchFn(`/api/tweet_info?id=${itemTweetId}`);
+            if (!response.ok) throw new Error('Failed to fetch');
+            tweetData = await response.json();
         }
 
-        // Show loading state only if data is not available anywhere
-        showCardLoading();
+        card.dataset.tweetData = JSON.stringify(tweetData);
+        delete card.dataset.loading;
 
-        try {
-            let tweetData;
-
-            // Priority 1: Use window.fetchTweetMedia for deduplication and caching
-            if (typeof window.fetchTweetMedia === 'function') {
-                const result = await window.fetchTweetMedia(itemTweetId);
-                tweetData = result.fullData;
-                if (result.images) {
-                    card.dataset.cachedMedia = JSON.stringify(result.images);
-                }
-            } else {
-                // Fallback to direct fetch
-                const fetchFn = typeof window.apiFetch === 'function' ? window.apiFetch : fetch;
-                const response = await fetchFn(`/api/tweet_info?id=${itemTweetId}`);
-                if (!response.ok) throw new Error('Failed to fetch');
-                tweetData = await response.json();
-            }
-
-            card.dataset.tweetData = JSON.stringify(tweetData);
-            delete card.dataset.loading;
-            console.log('[Modal] Card data loaded for tweetId:', itemTweetId);
-
-            // Update global cache if available
-            if (typeof window.tweetMediaCache !== 'undefined' && typeof window.extractImageUrlsFromTweetInfo === 'function') {
-                const images = window.extractImageUrlsFromTweetInfo(tweetData);
-                window.tweetMediaCache.set(itemTweetId, {
-                    images,
-                    data: tweetData
-                });
-                console.log('[Modal] Updated cache for tweetId:', itemTweetId);
-            }
-
-            // Now update the display with loaded data
-            updateCardDisplay(index);
-            // Also update thumbnail to remove spinner
-            updateThumbnail(index);
-        } catch (error) {
-            console.error('[Modal] Failed to load card data:', error);
-            showCardError();
+        // Ensure cache is updated if possible
+        if (typeof window.tweetMediaCache !== 'undefined' && typeof window.extractImageUrlsFromTweetInfo === 'function') {
+            const images = window.extractImageUrlsFromTweetInfo(tweetData);
+            window.tweetMediaCache.set(itemTweetId, {
+                images,
+                data: tweetData
+            });
         }
-        return;
-    }
 
-    // Data already loaded, update display directly
-    if (!card.dataset.tweetData) {
-        console.warn('[Modal] Card has no data and no loading flag');
-        return;
+        updateCardDisplay(index);
+        updateThumbnailUI(index);
+    } catch (error) {
+        console.error('[Modal] Failed to load card data:', error);
+        showCardError();
     }
-
-    updateCardDisplay(index);
 }
 
 /**
@@ -552,7 +496,7 @@ function updateCardDisplay(index) {
     if (!card || !card.dataset.tweetData) return;
 
     // Update the corresponding thumbnail in the strip
-    updateThumbnail(index);
+    updateThumbnailUI(index);
 
     try {
         const cardData = JSON.parse(card.dataset.tweetData);
