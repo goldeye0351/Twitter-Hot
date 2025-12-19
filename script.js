@@ -6,6 +6,89 @@ function extractTweetId(url) {
 
 const urlParams = new URLSearchParams(window.location.search);
 
+const SITE_THEME_STORAGE_KEY = 'site-theme';
+const SUN_ICON = `
+    <circle cx="12" cy="12" r="5"></circle>
+    <line x1="12" y1="1" x2="12" y2="3"></line>
+    <line x1="12" y1="21" x2="12" y2="23"></line>
+    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+    <line x1="1" y1="12" x2="3" y2="12"></line>
+    <line x1="21" y1="12" x2="23" y2="12"></line>
+    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+`;
+const MOON_ICON = `
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+`;
+
+(function ensureStoredThemeApplied() {
+    try {
+        const savedTheme = localStorage.getItem(SITE_THEME_STORAGE_KEY);
+        if (savedTheme === 'light') {
+            document.documentElement.classList.add('light-mode');
+        } else if (savedTheme === 'dark') {
+            document.documentElement.classList.remove('light-mode');
+        }
+    } catch (error) {
+        // Storage access failed, keep default theme.
+    }
+})();
+
+function isLightThemeActive() {
+    return document.documentElement.classList.contains('light-mode');
+}
+
+function syncBodyThemeClass() {
+    if (!document.body) return;
+    document.body.classList.toggle('light-mode', isLightThemeActive());
+}
+
+function getCurrentTheme() {
+    return isLightThemeActive() ? 'light' : 'dark';
+}
+
+function setThemePreference(theme, options = {}) {
+    const { persist = true, reloadTweets = false } = options;
+    const isLight = theme === 'light';
+
+    document.documentElement.classList.toggle('light-mode', isLight);
+
+    if (persist) {
+        try {
+            localStorage.setItem(SITE_THEME_STORAGE_KEY, theme);
+        } catch (error) {
+            console.warn('Unable to persist theme preference:', error);
+        }
+    }
+
+    syncBodyThemeClass();
+    updateThemeToggleIcon();
+
+    if (reloadTweets) {
+        reloadAllTweetEmbeds();
+    }
+}
+
+function updateThemeToggleIcon() {
+    const icon = document.getElementById('themeToggleIcon');
+    if (!icon) return;
+    icon.innerHTML = isLightThemeActive() ? MOON_ICON : SUN_ICON;
+}
+
+function setupThemeToggle() {
+    const toggle = document.getElementById('themeToggle');
+    if (!toggle) return;
+
+    toggle.addEventListener('click', () => {
+        const nextTheme = isLightThemeActive() ? 'dark' : 'light';
+        setThemePreference(nextTheme, { reloadTweets: true });
+    });
+
+    updateThemeToggleIcon();
+    syncBodyThemeClass();
+}
+
 let apiBaseUrl = '';
 
 function normalizeApiBase(value) {
@@ -69,6 +152,7 @@ window.getApiBaseUrl = getApiBaseUrl;
 window.setApiBaseUrl = setApiBaseUrl;
 window.apiFetch = apiFetch;
 window.buildApiUrl = buildApiUrl;
+window.getCurrentTheme = getCurrentTheme;
 window.fetchTweetMedia = fetchTweetMedia; // Expose for modal deduplication
 
 function copyToClipboard(text) {
@@ -128,52 +212,46 @@ function showCopyFeedback(button, success) {
 function fetchTweetMedia(tweetId, signal = null) {
     if (!tweetId) return Promise.resolve({ images: [], fullData: null });
 
-    // Single Source of Truth: Check cache first
+    // 1. Check in-memory cache
     const cached = tweetMediaCache.get(tweetId);
     if (cached) {
-        if (cached.data) {
-            return Promise.resolve({
-                images: cached.images,
-                fullData: cached.data
-            });
-        }
-        if (cached.promise) {
-            return cached.promise;
-        }
+        if (cached.data) return Promise.resolve({ images: cached.images, fullData: cached.data });
+        if (cached.promise) return cached.promise;
     }
 
-    const fetchOptions = signal ? { signal } : {};
-    const promise = apiFetch(`/api/tweet_info?id=${tweetId}`, fetchOptions)
-        .then(res => {
-            if (!res.ok) throw new Error(`API error: ${res.status}`);
-            return res.json();
-        })
-        .then(data => {
-            const images = extractImageUrlsFromTweetInfo(data);
+    // 2. Check persistent DB storage
+    const fetchWithDB = async () => {
+        const dbResult = await getFromDB(tweetId);
+        if (dbResult) {
+            // Re-populate in-memory cache for speed
+            tweetMediaCache.set(tweetId, { images: dbResult.images, data: dbResult.fullData });
+            return { images: dbResult.images, fullData: dbResult.fullData };
+        }
 
-            // Only update cache if our promise is still the current one (avoid race condition)
-            const currentCache = tweetMediaCache.get(tweetId);
-            if (currentCache && currentCache.promise === promise) {
-                tweetMediaCache.set(tweetId, { images, data });
-            }
-            return {
-                images,
-                fullData: data
-            };
-        })
-        .catch(error => {
-            if (error.name === 'AbortError') {
-                console.log('[fetchTweetMedia] Request aborted for ID:', tweetId);
-            } else {
-                console.error('[fetchTweetMedia] Error:', tweetId, error);
-            }
-            // If it failed/aborted, remove from cache so it can be retried
-            const currentCache = tweetMediaCache.get(tweetId);
-            if (currentCache && currentCache.promise === promise) {
-                tweetMediaCache.delete(tweetId);
-            }
-            throw error;
-        });
+        // 3. Fallback to API fetch
+        const fetchOptions = signal ? { signal } : {};
+        const res = await apiFetch(`/api/tweet_info?id=${tweetId}`, fetchOptions);
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+
+        const data = await res.json();
+        const images = extractImageUrlsFromTweetInfo(data);
+
+        // Update BOTH caches
+        tweetMediaCache.set(tweetId, { images, data });
+        saveToDB(tweetId, { images, fullData: data });
+
+        return { images, fullData: data };
+    };
+
+    const promise = fetchWithDB().catch(error => {
+        if (error.name === 'AbortError') {
+            console.log('[fetchTweetMedia] Request aborted for ID:', tweetId);
+        } else {
+            console.error('[fetchTweetMedia] Error:', tweetId, error);
+        }
+        tweetMediaCache.delete(tweetId);
+        throw error;
+    });
 
     tweetMediaCache.set(tweetId, { promise });
     return promise;
@@ -476,7 +554,7 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
                         wrapper.dataset.tweetData = JSON.stringify(result.fullData);
                         wrapper.dataset.cachedMedia = JSON.stringify(images);
                         delete wrapper.dataset.loading;
-                        console.log('[Gallery] Data synced to wrapper for tweetId:', tweetId);
+                        // console.log('[Gallery] Data synced to wrapper for tweetId:', tweetId);
                     }
 
                     // 为每张图片添加加载完成后的淡入动画
@@ -705,36 +783,34 @@ function extractImageUrlsFromTweetInfo(data) {
     if (data && Array.isArray(data.media_extended)) {
         data.media_extended.forEach(media => {
             if (media) {
+                const url = media.url || media.media_url_https || media.thumbnail_url;
+                if (!url) return;
+
                 // 处理图片
-                if (media.type === 'image' && media.url) {
-                    images.push({
-                        url: media.url,
-                        type: 'image'
-                    });
+                if (media.type === 'image') {
+                    images.push({ url, type: 'image' });
                 }
-                // 处理视频 - 提取缩略图
-                else if (media.type === 'video') {
-                    const thumbnailUrl = media.thumbnail_url || media.url;
-                    if (thumbnailUrl) {
-                        images.push({
-                            url: thumbnailUrl,
-                            type: 'video'
-                        });
+                // 处理视频或 GIF - 提取缩略图
+                else if (media.type === 'video' || media.type === 'animated_gif') {
+                    const thumb = media.thumbnail_url || media.url || media.media_url_https;
+                    if (thumb) {
+                        images.push({ url: thumb, type: media.type });
                     }
                 }
             }
         });
     }
 
-    if (images.length === 0 && Array.isArray(data && data.mediaURLs)) {
-        data.mediaURLs.forEach(url => {
-            if (typeof url === 'string') {
-                images.push({
-                    url: url,
-                    type: 'image' // 降级方案默认为图片
-                });
-            }
-        });
+    // Fallback to mediaURLs if media_extended failed
+    if (images.length === 0 && data) {
+        const urls = data.mediaURLs || data.media_urls || [];
+        if (Array.isArray(urls)) {
+            urls.forEach(url => {
+                if (typeof url === 'string') {
+                    images.push({ url: url, type: 'image' });
+                }
+            });
+        }
     }
 
     return images;
@@ -885,36 +961,23 @@ function preloadAdjacentCards(cards, currentIndex, range = 3, signal = null) {
     const MAX_CONCURRENT_PRELOADS = 2;
 
     const loadCard = async (index) => {
-        const card = cards[index];
-        // Skip if already loaded or no loading flag
-        if (!card || !card.dataset.loading) return;
+        const card = window.visibleCards[index];
+        if (!card || card.dataset.tweetData || card.dataset.loading === 'finished') return;
 
         const itemTweetId = card.dataset.tweetId;
+        if (!itemTweetId) return;
 
-        // Check cache first
-        const cachedData = tweetMediaCache.get(itemTweetId);
-        if (cachedData && cachedData.data) {
-            // Use cached data
-            card.dataset.tweetData = JSON.stringify(cachedData.data);
-            delete card.dataset.loading;
-            console.log('[Gallery Modal] Preloaded card', index, 'from cache, tweetId:', itemTweetId);
-            return;
-        }
-
-        // Load from API if not cached using apiFetch
+        // Use the reinforced unified fetch function
         try {
-            const response = await apiFetch(`/api/tweet_info?id=${itemTweetId}`);
-            if (!response.ok) throw new Error('Failed to fetch');
-            const tweetData = await response.json();
+            const result = await fetchTweetMedia(itemTweetId);
 
-            card.dataset.tweetData = JSON.stringify(tweetData);
-            delete card.dataset.loading;
-            // Update cache
-            tweetMediaCache.set(itemTweetId, {
-                images: extractImageUrlsFromTweetInfo(tweetData),
-                data: tweetData
-            });
-            console.log('[Gallery Modal] Preloaded card', index, 'from API, tweetId:', itemTweetId);
+            // Sync to dataset for modal components
+            card.dataset.tweetData = JSON.stringify(result.fullData);
+            if (result.images) card.dataset.cachedMedia = JSON.stringify(result.images);
+
+            // Mark as finished but keep a flag to avoid re-preloade
+            card.dataset.loading = 'finished';
+            console.log('[Gallery Modal] Preloaded card', index, 'tweetId:', itemTweetId);
 
             // Notify modal to update thumbnail if it's open
             if (typeof window.updateThumbnail === 'function') {
@@ -922,6 +985,8 @@ function preloadAdjacentCards(cards, currentIndex, range = 3, signal = null) {
             }
         } catch (error) {
             console.warn('[Gallery Modal] Failed to preload card', index, error);
+            // Optionally mark as failed to avoid infinite retries
+            card.dataset.loading = 'failed';
         }
     };
 
@@ -1207,33 +1272,41 @@ function updateViewToggleUI(view) {
 function setupLazyLoadingForTweet(container) {
     if (!container) return;
 
+    // Check if container is already being observed or loaded
+    if (container.classList.contains('loaded') || container.classList.contains('loading')) {
+        return;
+    }
+
     const observerOptions = {
         root: null,
         rootMargin: '200px',
         threshold: 0.01
     };
 
-    const tweetObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting && !entry.target.classList.contains('loaded') && !entry.target.classList.contains('loading')) {
-                const container = entry.target;
-                const url = container.getAttribute('data-tweet-url');
-                const index = parseInt(container.getAttribute('data-tweet-index'));
+    // Use global observer if available, create new one if not
+    if (typeof window.tweetObserver === 'undefined') {
+        window.tweetObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && !entry.target.classList.contains('loaded') && !entry.target.classList.contains('loading')) {
+                    const container = entry.target;
+                    const url = container.getAttribute('data-tweet-url');
+                    const index = parseInt(container.getAttribute('data-tweet-index'));
 
-                container.classList.add('loading');
+                    container.classList.add('loading');
 
-                const loadingSpan = container.querySelector('.tweet-loading span');
-                if (loadingSpan) {
-                    loadingSpan.textContent = 'Loading tweet...';
+                    const loadingSpan = container.querySelector('.tweet-loading span');
+                    if (loadingSpan) {
+                        loadingSpan.textContent = 'Loading tweet...';
+                    }
+
+                    loadTweet(url, container, index);
+                    window.tweetObserver.unobserve(container);
                 }
+            });
+        }, observerOptions);
+    }
 
-                loadTweet(url, container, index);
-                tweetObserver.unobserve(container);
-            }
-        });
-    }, observerOptions);
-
-    tweetObserver.observe(container);
+    window.tweetObserver.observe(container);
 }
 
 // Legacy function for backward compatibility
@@ -1269,8 +1342,42 @@ function setupLazyLoadingForTweets() {
     });
 }
 
+function ensureTweetLoadingElement(container) {
+    if (!container) return null;
+    let loading = container.querySelector('.tweet-loading');
+    if (!loading) {
+        loading = document.createElement('div');
+        loading.className = 'tweet-loading';
+        loading.innerHTML = `
+            <div class="loading-spinner"></div>
+            <span>Loading...</span>
+        `;
+        container.insertBefore(loading, container.firstChild);
+    } else {
+        loading.style.display = '';
+    }
+    return loading;
+}
+
 // Load embedded tweet using Twitter's widget
-function loadTweet(url, container, index) {
+function loadTweet(url, container, index, options = {}) {
+    const { force = false } = options;
+    // Prevent duplicate loading unless forced
+    if (!force && (container.classList.contains('loading') || container.classList.contains('loaded'))) {
+        return;
+    }
+
+    const loading = ensureTweetLoadingElement(container);
+    if (loading) {
+        const loadingSpan = loading.querySelector('span');
+        if (loadingSpan) {
+            loadingSpan.textContent = 'Loading tweet...';
+        }
+    }
+
+    container.classList.add('loading');
+    container.classList.remove('loaded');
+
     const tweetId = extractTweetId(url);
 
     if (!tweetId) {
@@ -1280,8 +1387,17 @@ function loadTweet(url, container, index) {
         return;
     }
 
-    const target = document.getElementById(`tweet-target-${index}`);
-    const loading = container.querySelector('.tweet-loading');
+    // Make sure target element exists and is clean
+    let target = document.getElementById(`tweet-target-${index}`);
+    if (!target) {
+        // Create target element if it doesn't exist
+        target = document.createElement('div');
+        target.id = `tweet-target-${index}`;
+        container.appendChild(target);
+    } else {
+        // Clear any existing content
+        target.innerHTML = '';
+    }
 
     // Check if Twitter script failed to load (e.g. blocked by ad blocker)
     if (window.twitterScriptFailed) {
@@ -1301,11 +1417,12 @@ function loadTweet(url, container, index) {
     }
 
     const renderTweet = () => {
+        const tweetTheme = getCurrentTheme();
         window.twttr.widgets.createTweet(
             tweetId,
             target,
             {
-                theme: 'dark',
+                theme: tweetTheme,
                 dnt: true,
                 conversation: 'none',
                 cards: 'visible',
@@ -1352,6 +1469,27 @@ function loadTweet(url, container, index) {
             }
         }, 10000);
     }
+}
+
+function reloadAllTweetEmbeds() {
+    if (!window.twttr || !window.twttr.widgets) {
+        return;
+    }
+
+    document.querySelectorAll('.tweet-embed-container.loaded').forEach(container => {
+        const url = container.getAttribute('data-tweet-url');
+        const index = parseInt(container.getAttribute('data-tweet-index'), 10);
+        if (!url || Number.isNaN(index)) return;
+
+        const target = document.getElementById(`tweet-target-${index}`);
+        if (target) {
+            target.innerHTML = '';
+        }
+
+        container.classList.remove('loaded');
+        container.classList.remove('loading');
+        loadTweet(url, container, index, { force: true });
+    });
 }
 
 // Global State
@@ -1423,6 +1561,53 @@ const imageViewerState = {
 
 // Expose cache and utility function to window for modal access
 window.tweetMediaCache = tweetMediaCache;
+
+// --- IndexedDB for Persistent Metadata Storage ---
+const DB_NAME = 'BananaHotDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'tweetMedia';
+
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function saveToDB(id, data) {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.put({ id, ...data });
+        return tx.complete;
+    } catch (e) {
+        console.error('[DB] Save failed:', e);
+    }
+}
+
+async function getFromDB(id) {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        return new Promise((resolve) => {
+            const request = store.get(id);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => resolve(null);
+        });
+    } catch (e) {
+        console.error('[DB] Get failed:', e);
+        return null;
+    }
+}
 window.extractImageUrlsFromTweetInfo = extractImageUrlsFromTweetInfo;
 
 // Infinite scroll state
@@ -1435,6 +1620,9 @@ window.currentPreloadController = null; // Controller to abort previous backgrou
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    syncBodyThemeClass();
+    setupThemeToggle();
+
     // Check if we are on the main page (index.html)
     if (document.getElementById('contentList')) {
         // Setup view toggle buttons
@@ -2125,11 +2313,34 @@ function loadContentForDate(date, append = false, callback = null, signal = null
     const storageKey = `tweets_${date}`;
 
     if (!append) {
-        // Show loading state only for initial load
-        contentList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading content...</div>';
+        // Clear any existing content and reset
+        contentList.innerHTML = '';
         emptyState.style.display = 'none';
         tweetUrls.length = 0;
-        tweetMediaCache.clear();
+        
+        // Clear all tweet observers to prevent memory leaks
+        if (typeof tweetObserver !== 'undefined') {
+            try {
+                tweetObserver.disconnect();
+            } catch (e) {
+                console.warn('Error disconnecting observer:', e);
+            }
+        }
+        
+        // Clear any existing Twitter embeds to prevent conflicts
+        if (window.twttr && window.twttr.widgets) {
+            try {
+                // Remove all existing tweet widgets from the entire document
+                const tweets = document.querySelectorAll('.twitter-tweet, iframe[src*="twitter.com"], iframe[src*="x.com"]');
+                tweets.forEach(tweet => tweet.remove());
+            } catch (e) {
+                console.warn('Error removing existing tweets:', e);
+            }
+        }
+        
+        // Show loading state
+        contentList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading content...</div>';
+        // tweetMediaCache.clear(); // Persistence: Don't clear cache aggressively anymore
     }
 
     const url = `/api/data?date=${encodeURIComponent(date)}`;
@@ -2311,17 +2522,113 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 });
 
 // Wait for libraries to load
-async function waitForLibraries(timeout = 5000) {
+async function waitForLibraries(timeout = 10000) {
     const startTime = Date.now();
-
-    while (Date.now() - startTime < timeout) {
-        if (typeof html2canvas !== 'undefined' && typeof JSZip !== 'undefined') {
-            return true;
-        }
-        await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 首先检查库是否已经加载
+    if (typeof html2canvas !== 'undefined' && typeof JSZip !== 'undefined') {
+        return true;
     }
+    
+    // 监听库加载完成的自定义事件
+    return new Promise(resolve => {
+        let resolved = false;
+        
+        const librariesLoadedHandler = () => {
+            if (!resolved) {
+                resolved = true;
+                document.removeEventListener('librariesLoaded', librariesLoadedHandler);
+                resolve(true);
+            }
+        };
+        
+        document.addEventListener('librariesLoaded', librariesLoadedHandler);
+        
+        // 同时轮询检查全局变量（双重保险）
+        const checkInterval = setInterval(() => {
+            if (!resolved && typeof html2canvas !== 'undefined' && typeof JSZip !== 'undefined') {
+                resolved = true;
+                clearInterval(checkInterval);
+                document.removeEventListener('librariesLoaded', librariesLoadedHandler);
+                resolve(true);
+            }
+        }, 200);
+        
+        // 设置超时，以防事件永远不会触发
+        setTimeout(() => {
+            if (!resolved) {
+                resolved = true;
+                clearInterval(checkInterval);
+                document.removeEventListener('librariesLoaded', librariesLoadedHandler);
+                resolve(false);
+            }
+        }, timeout);
+    });
+}
 
-    return false;
+// Test library loading function - can be called from console
+window.testLibraries = function() {
+    const html2canvasStatus = typeof html2canvas !== 'undefined' ? 
+        '✓ 已加载 (版本: ' + (html2canvas.version || '未知') + ')' : 
+        '✗ 未加载';
+    
+    const jszipStatus = typeof JSZip !== 'undefined' ? 
+        '✓ 已加载 (版本: ' + (JSZip.version || '未知') + ')' : 
+        '✗ 未加载';
+    
+    console.log('=== 库加载状态检查 ===');
+    console.log('html2canvas:', html2canvasStatus);
+    console.log('JSZip:', jszipStatus);
+    console.log('window.librariesReady:', window.librariesReady ? '✓ 已就绪' : '✗ 未就绪');
+    
+    return {
+        html2canvas: typeof html2canvas !== 'undefined',
+        jszip: typeof JSZip !== 'undefined',
+        librariesReady: window.librariesReady || false
+    };
+};
+
+// 添加一个调试按钮到页面（仅在开发模式下）
+if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    document.addEventListener('DOMContentLoaded', () => {
+        const debugBtn = document.createElement('button');
+        debugBtn.textContent = '测试库加载';
+        debugBtn.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            z-index: 1000;
+            font-size: 12px;
+            cursor: pointer;
+        `;
+        debugBtn.addEventListener('click', () => {
+            const status = window.testLibraries();
+            const msg = document.createElement('div');
+            msg.style.cssText = `
+                position: fixed;
+                bottom: 60px;
+                right: 20px;
+                background: ${status.html2canvas && status.jszip ? '#4CAF50' : '#f44336'};
+                color: white;
+                padding: 10px;
+                border-radius: 4px;
+                z-index: 1001;
+                max-width: 300px;
+            `;
+            msg.textContent = `html2canvas: ${status.html2canvas ? '✓' : '✗'}, JSZip: ${status.jszip ? '✓' : '✗'}`;
+            document.body.appendChild(msg);
+            
+            setTimeout(() => {
+                msg.remove();
+            }, 3000);
+        });
+        document.body.appendChild(debugBtn);
+    });
 }
 
 // Generate image from container and download content as ZIP
@@ -2338,41 +2645,49 @@ async function downloadDayAsImage(button, container, dateLabel) {
 
     // Wait for libraries to load
     updateStatus('Checking libraries...');
-    const librariesLoaded = await waitForLibraries();
+    
+    // 首先直接检查全局变量，避免不必要的等待
+    if (typeof html2canvas !== 'undefined' && typeof JSZip !== 'undefined') {
+        updateStatus('Libraries already loaded');
+    } else {
+        // 如果库未加载，尝试等待或手动加载
+        updateStatus('Loading required libraries...');
+        
+        // 尝试手动加载库
+        if (!window.librariesReady) {
+            updateStatus('Attempting to load libraries...');
+            await new Promise(resolve => {
+                // 等待库加载或者超时
+                let checkCount = 0;
+                const maxChecks = 20; // 最多检查 20 次，每次间隔 500ms = 10 秒
+                
+                const checkInterval = setInterval(() => {
+                    checkCount++;
+                    if ((typeof html2canvas !== 'undefined' && typeof JSZip !== 'undefined') || 
+                        window.librariesReady || 
+                        checkCount >= maxChecks) {
+                        clearInterval(checkInterval);
+                        resolve();
+                    }
+                }, 500);
+            });
+        }
+    }
 
-    if (!librariesLoaded) {
-        console.error('Required libraries (html2canvas or JSZip) not loaded');
+    // 最终检查库是否可用
+    if (typeof html2canvas === 'undefined' || typeof JSZip === 'undefined') {
+        // 仅在控制台输出错误信息
+        console.error('下载功能失败: Required libraries (html2canvas or JSZip) not available');
+        console.log('库加载状态:');
+        console.log('  html2canvas:', typeof html2canvas !== 'undefined' ? '✓ 已加载' : '✗ 未加载');
+        console.log('  JSZip:', typeof JSZip !== 'undefined' ? '✓ 已加载' : '✗ 未加载');
+
         button.classList.remove('generating');
         button.classList.add('error');
 
-        // Show user-friendly error message
-        const errorMsg = document.createElement('div');
-        errorMsg.style.cssText = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: var(--bg-card);
-            color: var(--text-primary);
-            padding: 1.5rem 2rem;
-            border-radius: 8px;
-            box-shadow: var(--shadow-lg);
-            z-index: 10000;
-            max-width: 400px;
-            text-align: center;
-        `;
-        errorMsg.innerHTML = `
-            <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem;">Download Failed</div>
-            <div style="color: var(--text-secondary); font-size: 0.9rem;">
-                Required libraries could not be loaded. Please check your internet connection and try again.
-            </div>
-        `;
-        document.body.appendChild(errorMsg);
-
         setTimeout(() => {
-            errorMsg.remove();
             button.classList.remove('error');
-        }, 3000);
+        }, 5000);
         return;
     }
 
@@ -2385,8 +2700,30 @@ async function downloadDayAsImage(button, container, dateLabel) {
 
         // --- Step 1: Capture Full Screenshot ---
         updateStatus('Capturing screenshot...');
+
+        // Pre-process: Convert all Twitter images to canvas-based data URLs to avoid CORS
+        const originalImages = container.querySelectorAll('img[src*="twimg.com"]');
+        const imageBackups = new Map();
+
+        for (const img of originalImages) {
+            if (img.complete && img.naturalWidth > 0) {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+                    imageBackups.set(img, { original: img.src, dataURL });
+                    img.src = dataURL; // Temporarily replace with data URL
+                } catch (e) {
+                    console.warn('Failed to convert image to data URL:', e);
+                }
+            }
+        }
+
         const canvas = await html2canvas(container, {
-            useCORS: true,
+            useCORS: false,
             allowTaint: true,
             backgroundColor: getComputedStyle(document.body).backgroundColor,
             scale: 2,
@@ -2399,6 +2736,11 @@ async function downloadDayAsImage(button, container, dateLabel) {
                 }
             }
         });
+
+        // Restore original image sources
+        for (const [img, backup] of imageBackups) {
+            img.src = backup.original;
+        }
 
         // Add screenshot to ZIP
         const screenshotBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
@@ -2422,40 +2764,59 @@ async function downloadDayAsImage(button, container, dateLabel) {
             }
         });
 
-        // Process images (limit concurrency if needed, but for now linear or parallel batch)
+        // Process images from DOM elements (avoid CORS issues)
         const tweetIds = Array.from(uniqueTweetIds);
         let imageCount = 0;
 
+        // Helper function to convert img element to blob using canvas
+        const imgToBlob = (imgElement) => {
+            return new Promise((resolve, reject) => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = imgElement.naturalWidth || imgElement.width;
+                    canvas.height = imgElement.naturalHeight || imgElement.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(imgElement, 0, 0);
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            resolve(blob);
+                        } else {
+                            reject(new Error('Canvas toBlob failed'));
+                        }
+                    }, 'image/jpeg', 0.95);
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        };
+
         const downloadPromises = tweetIds.map(async (tweetId) => {
             try {
-                // Fetch tweet media info (using cache if available from previous logic)
-                const result = await fetchTweetMedia(tweetId);
-                const mediaItems = result?.images || [];
+                // Find images for this tweet in the DOM
+                const tweetItem = Array.from(items).find(item => {
+                    const url = item.dataset.tweetUrl || (item.querySelector('.gallery-link-icon')?.href);
+                    return url && extractTweetId(url) === tweetId;
+                });
 
-                if (!mediaItems || mediaItems.length === 0) return;
+                if (!tweetItem) return;
 
-                // Download each media item
-                await Promise.all(mediaItems.map(async (media, index) => {
-                    if (media.type === 'video') return; // Skip videos for now, or fetch thumbnail
+                // Get all img elements within this tweet
+                const imgElements = tweetItem.querySelectorAll('img.tweet-image, img.gallery-image');
 
-                    const imageUrl = media.url;
+                await Promise.all(Array.from(imgElements).map(async (img, index) => {
                     try {
-                        // Fetch image blob
-                        const response = await fetch(imageUrl);
-                        if (!response.ok) throw new Error('Fetch failed');
-                        const blob = await response.blob();
+                        // Skip if image not loaded
+                        if (!img.complete || img.naturalWidth === 0) {
+                            console.warn(`Image not loaded for tweet ${tweetId}, index ${index}`);
+                            return;
+                        }
 
-                        // Determine extension
-                        const ext = imageUrl.split('.').pop().split('?')[0] || 'jpg';
-                        const filename = `tweet_${tweetId}_${index + 1}.${ext}`;
-
+                        const blob = await imgToBlob(img);
+                        const filename = `tweet_${tweetId}_${index + 1}.jpg`;
                         folder.file(filename, blob);
                         imageCount++;
                     } catch (e) {
-                        // Fallback: If CORS fails (likely), we might need a proxy or skip
-                        console.warn(`Failed to download image: ${imageUrl}`, e);
-                        // Try fetching via internal proxy if your architecture supports it?
-                        // For now, allow failing silently for specific images
+                        console.warn(`Failed to process image for tweet ${tweetId}, index ${index}:`, e);
                     }
                 }));
 

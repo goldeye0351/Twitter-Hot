@@ -99,11 +99,6 @@ function openTweetDetail(data, url, index, cards) {
                 e.preventDefault();
                 navigateToTweet(1);
                 break;
-            case 'c':
-            case 'C':
-                e.preventDefault();
-                copyCurrentTweetLink();
-                break;
             case 'Enter':
                 e.preventDefault();
                 openCurrentTweet();
@@ -189,11 +184,28 @@ function getTweetDataForIndex(index) {
  * @param {string} loadingState - Loading state string
  * @returns {string} - HTML content
  */
-function getThumbnailHtml(cardData, loadingState) {
+/**
+ * Generate thumbnail HTML content
+ * @param {Object} cardData - Tweet data (can be null)
+ * @param {HTMLElement} card - The card element (optional, for accessing dataset)
+ * @returns {string} - HTML content
+ */
+function getThumbnailHtml(cardData, card = null) {
+    // 1. Try to use full card data first - The most accurate source
     if (cardData) {
         if (cardData.media_extended && cardData.media_extended.length > 0) {
             const firstMedia = cardData.media_extended[0];
-            return `<img src="${firstMedia.url || firstMedia.thumbnail_url}" alt="Thumbnail">`;
+
+            // For videos/GIFs, we specifically want the thumbnail_url if available
+            // standard 'url' usually points to the mp4 which is fine for <video> but n/a for <img>
+            let thumbUrl = firstMedia.url;
+            if (firstMedia.type === 'video' || firstMedia.type === 'animated_gif') {
+                thumbUrl = firstMedia.thumbnail_url || firstMedia.url || firstMedia.media_url_https;
+            } else {
+                thumbUrl = firstMedia.url || firstMedia.media_url_https;
+            }
+
+            return `<img src="${thumbUrl}" alt="Thumbnail">`;
         } else if (cardData.mediaURLs && cardData.mediaURLs.length > 0) {
             return `<img src="${cardData.mediaURLs[0]}" alt="Thumbnail">`;
         } else {
@@ -201,10 +213,35 @@ function getThumbnailHtml(cardData, loadingState) {
         }
     }
 
-    if (loadingState === 'true') {
+    // 2. Try to use cached media from dataset (Preloading state or cached)
+    if (card && card.dataset.cachedMedia) {
+        try {
+            const cachedMedia = JSON.parse(card.dataset.cachedMedia);
+            if (cachedMedia && cachedMedia.length > 0) {
+                const firstMedia = cachedMedia[0];
+                // In cachedMedia (from script.js), video objects already have key 'url' set to thumbnail
+                const mediaUrl = typeof firstMedia === 'string' ? firstMedia : firstMedia.url;
+                return `<img src="${mediaUrl}" alt="Thumbnail">`;
+            } else {
+                return `<div class="thumbnail-item-placeholder">No media</div>`;
+            }
+        } catch (e) {
+            // Ignore parse errors
+        }
+    }
+
+    // 3. Handle loading states
+    const loadingState = card ? card.dataset.loading : null;
+
+    if (loadingState === 'true' || loadingState === 'loading') {
         return `<div class="thumbnail-item-placeholder"><div class="loading-spinner small"></div></div>`;
     }
 
+    if (loadingState === 'failed') {
+        return `<div class="thumbnail-item-placeholder">!</div>`;
+    }
+
+    // 4. Default fallback
     return `<div class="thumbnail-item-placeholder">?</div>`;
 }
 
@@ -229,7 +266,7 @@ function generateThumbnails(startIndex = 0) {
         thumbnailItem.dataset.index = index;
 
         const cardData = getTweetDataForIndex(index);
-        const thumbnailContent = getThumbnailHtml(cardData, card.dataset.loading);
+        const thumbnailContent = getThumbnailHtml(cardData, card);
 
         thumbnailItem.innerHTML = `
             ${thumbnailContent}
@@ -262,49 +299,8 @@ function updateThumbnailUI(index) {
     const checkbox = card.querySelector('.tweet-check-input');
     const isSelected = checkbox && checkbox.checked;
 
-    let thumbnailContent = '';
-
-    // Same logic as generateThumbnails
-    if (card.dataset.tweetData) {
-        try {
-            const cardData = JSON.parse(card.dataset.tweetData);
-            if (cardData.media_extended && cardData.media_extended.length > 0) {
-                const firstMedia = cardData.media_extended[0];
-                if (firstMedia.type === 'image') {
-                    thumbnailContent = `<img src="${firstMedia.url}" alt="Tweet thumbnail">`;
-                } else if (firstMedia.type === 'video' && firstMedia.thumbnail_url) {
-                    thumbnailContent = `<img src="${firstMedia.thumbnail_url}" alt="Video thumbnail">`;
-                } else {
-                    thumbnailContent = `<div class="thumbnail-item-placeholder">Video</div>`;
-                }
-            } else if (cardData.mediaURLs && cardData.mediaURLs.length > 0) {
-                thumbnailContent = `<img src="${cardData.mediaURLs[0]}" alt="Tweet thumbnail">`;
-            } else {
-                const textPreview = (cardData.text || 'No content').substring(0, 20);
-                thumbnailContent = `<div class="thumbnail-item-placeholder">${textPreview}</div>`;
-            }
-        } catch (err) {
-            thumbnailContent = `<div class="thumbnail-item-placeholder">Error</div>`;
-        }
-    } else if (card.dataset.cachedMedia) {
-        try {
-            const cachedMedia = JSON.parse(card.dataset.cachedMedia);
-            if (cachedMedia && cachedMedia.length > 0) {
-                const firstMedia = cachedMedia[0];
-                const mediaUrl = typeof firstMedia === 'string' ? firstMedia : firstMedia.url;
-                const mediaType = typeof firstMedia === 'object' ? firstMedia.type : 'image';
-                thumbnailContent = `<img src="${mediaUrl}" alt="${mediaType === 'video' ? 'Video' : 'Tweet'} thumbnail">`;
-            } else {
-                thumbnailContent = `<div class="thumbnail-item-placeholder">No media</div>`;
-            }
-        } catch (err) {
-            thumbnailContent = `<div class="thumbnail-item-placeholder">?</div>`;
-        }
-    } else if (card.dataset.loading === 'true') {
-        thumbnailContent = `<div class="thumbnail-item-placeholder"><div class="loading-spinner small"></div></div>`;
-    } else {
-        thumbnailContent = `<div class="thumbnail-item-placeholder">?</div>`;
-    }
+    const cardData = getTweetDataForIndex(index);
+    const thumbnailContent = getThumbnailHtml(cardData, card);
 
     // Update innerHTML while preserving the number and selection indicator
     thumbnailItem.innerHTML = `
@@ -401,7 +397,7 @@ async function updateMainCard(index) {
             // Sync to dataset for legacy components
             card.dataset.tweetData = JSON.stringify(cached.data);
             if (cached.images) card.dataset.cachedMedia = JSON.stringify(cached.images);
-            delete card.dataset.loading;
+            card.dataset.loading = 'finished';
 
             updateCardDisplay(index);
             updateThumbnailUI(index);
@@ -438,7 +434,7 @@ async function updateMainCard(index) {
         }
 
         card.dataset.tweetData = JSON.stringify(tweetData);
-        delete card.dataset.loading;
+        card.dataset.loading = 'finished';
 
         // Ensure cache is updated if possible
         if (typeof window.tweetMediaCache !== 'undefined' && typeof window.extractImageUrlsFromTweetInfo === 'function') {
@@ -539,7 +535,7 @@ function updateCardDisplay(index) {
         const renderItems = (items, isMediaExtended = false) => {
             const mediaElements = [];
             items.forEach((item, idx) => {
-                const isVideo = isMediaExtended ? item.type === 'video' : false;
+                const isVideo = isMediaExtended ? (item.type === 'video' || item.type === 'animated_gif') : false;
                 const url = isMediaExtended ? item.url : item;
                 const thumbUrl = isMediaExtended ? item.thumbnail_url : null;
 
@@ -556,9 +552,15 @@ function updateCardDisplay(index) {
                     };
                     imgEl.src = url;
                     imgEl.alt = 'Tweet image';
-                    // If cached, show immediately
-                    if (imgEl.complete) {
+                    // Immediate check for cached images
+                    if (imgEl.complete && imgEl.naturalWidth > 0) {
+                        imgEl.style.transition = 'none'; // No need to fade if instant
                         imgEl.style.opacity = '1';
+                    } else {
+                        // Fallback: If it's cached but somehow not 'complete' yet or naturalWidth 0
+                        setTimeout(() => {
+                            if (imgEl.complete && imgEl.naturalWidth > 0) imgEl.style.opacity = '1';
+                        }, 50);
                     }
                     mediaElements.push(imgEl);
                     imagesContainer.appendChild(imgEl);
@@ -604,7 +606,7 @@ function updateCardDisplay(index) {
         };
 
         if (cardData.media_extended && cardData.media_extended.length > 0) {
-            renderItems(cardData.media_extended.filter(m => m.type === 'image' || m.type === 'video'), true);
+            renderItems(cardData.media_extended.filter(m => m.type === 'image' || m.type === 'video' || m.type === 'animated_gif'), true);
         } else if (cardData.mediaURLs && cardData.mediaURLs.length > 0) {
             renderItems(cardData.mediaURLs, false);
         }

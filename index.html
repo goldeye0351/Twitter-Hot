@@ -4,9 +4,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' https://platform.twitter.com https://*.twitter.com https://*.vercel-insights.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https:; frame-src https://platform.twitter.com https://*.twitter.com">
     <title>🍌 Nano Banana Pro Prompt | Daily Highlights</title>
     <meta name="description"
         content="Daily curated content about nano banana pro prompt from Twitter, featuring trending discussions and insights">
+    <script>
+        (function () {
+            try {
+                const savedTheme = localStorage.getItem('site-theme');
+                if (savedTheme === 'light') {
+                    document.documentElement.classList.add('light-mode');
+                }
+            } catch (error) {
+                console.warn('Theme preference unavailable:', error);
+            }
+        })();
+    </script>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="tweet-detail-modal.css">
@@ -69,6 +82,20 @@
                         Gallery
                     </button>
                 </div>
+                <button class="theme-toggle-btn" id="themeToggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+                    <svg id="themeToggleIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
             </div>
         </div>
     </div>
@@ -115,10 +142,136 @@
 
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"
-        onerror="this.onerror=null; this.src='https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js'; console.log('Falling back to unpkg for html2canvas');"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
-        onerror="this.onerror=null; this.src='https://unpkg.com/jszip@3.10.1/dist/jszip.min.js'; console.log('Falling back to unpkg for JSZip');"></script>
+    <!-- Load libraries with multiple fallbacks and verification -->
+    <script>
+        (function() {
+            let html2canvasLoaded = false;
+            let jszipLoaded = false;
+            let loadingAttempts = 0;
+            const maxAttempts = 3;
+            
+            // 检查库是否已加载
+            function checkLibraries() {
+                return html2canvasLoaded && jszipLoaded;
+            }
+            
+            // 通知主脚本库已加载
+            function notifyLibrariesLoaded() {
+                if (checkLibraries()) {
+                    document.dispatchEvent(new CustomEvent('librariesLoaded'));
+                    window.librariesReady = true;
+                }
+            }
+            
+            // 创建并加载脚本
+            function loadScriptWithVerification(src, globalVarName, callback, errorCallback, fallbackSrcs) {
+                const attemptLoad = (url, attemptIndex = 0) => {
+                    if (attemptIndex >= fallbackSrcs.length) {
+                        errorCallback(`All sources failed for ${globalVarName}`);
+                        return;
+                    }
+
+                    const script = document.createElement('script');
+                    script.src = url;
+                    script.crossOrigin = 'anonymous';
+
+                    script.onload = function() {
+                        // 延迟检查，确保库完全初始化
+                        setTimeout(() => {
+                            if (window[globalVarName]) {
+                                callback();
+                            } else {
+                                attemptLoad(fallbackSrcs[attemptIndex + 1], attemptIndex + 1);
+                            }
+                        }, 500);
+                    };
+
+                    script.onerror = function() {
+                        attemptLoad(fallbackSrcs[attemptIndex + 1], attemptIndex + 1);
+                    };
+
+                    document.head.appendChild(script);
+                };
+
+                attemptLoad(src, 0);
+            }
+
+            // 尝试加载库
+            function attemptToLoadLibraries() {
+                if (loadingAttempts >= maxAttempts) {
+                    showLibraryError();
+                    return;
+                }
+
+                loadingAttempts++;
+
+                // 重置状态
+                html2canvasLoaded = false;
+                jszipLoaded = false;
+                
+                // 加载 html2canvas
+                loadScriptWithVerification(
+                    'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+                    'html2canvas',
+                    function() { 
+                        html2canvasLoaded = true;
+                        notifyLibrariesLoaded();
+                    },
+                    function(error) { 
+                        console.error(`html2canvas 加载失败: ${error}`);
+                        handleLibraryLoadError();
+                    },
+                    [
+                        'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+                        'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+                    ]
+                );
+                
+                // 加载 JSZip
+                loadScriptWithVerification(
+                    'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+                    'JSZip',
+                    function() { 
+                        jszipLoaded = true;
+                        notifyLibrariesLoaded();
+                    },
+                    function(error) { 
+                        console.error(`JSZip 加载失败: ${error}`);
+                        handleLibraryLoadError();
+                    },
+                    [
+                        'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+                        'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
+                    ]
+                );
+            }
+            
+            // 处理库加载错误
+            function handleLibraryLoadError() {
+                if (!html2canvasLoaded || !jszipLoaded) {
+                    if (loadingAttempts < maxAttempts) {
+                        setTimeout(attemptToLoadLibraries, 2000);
+                    } else {
+                        showLibraryError();
+                    }
+                }
+            }
+            
+            // 显示加载错误提示（仅在控制台输出）
+            function showLibraryError() {
+                console.error('下载功能所需库加载失败');
+                console.log('请检查网络连接或尝试：');
+                console.log('1. 刷新页面');
+                console.log('2. 清除浏览器缓存');
+                console.log('3. 禁用广告拦截器');
+            }
+            
+            // 开始加载库
+            attemptToLoadLibraries();
+        })();
+    </script>
     <script src="script.js"></script>
     <script src="tweet-detail-modal.js"></script>
 
@@ -188,14 +341,14 @@
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                             </svg>
-                            复制链接
+                            Copy Link
                         </button>
                         <a class="tweet-detail-action-btn" id="modalOpenBtn" target="_blank" rel="noopener">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3">
                                 </path>
                             </svg>
-                            打开原推文
+                            Open Original Tweet
                         </a>
                     </div>
                 </div>
@@ -212,6 +365,16 @@
         window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
     </script>
     <script defer src="/_vercel/insights/script.js"></script>
+    <script>
+        // Register Service Worker for ultimate caching experience
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('[SW] Registered'))
+                    .catch(err => console.log('[SW] Registration failed:', err));
+            });
+        }
+    </script>
 </body>
 
 </html>
