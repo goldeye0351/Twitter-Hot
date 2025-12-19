@@ -1279,19 +1279,31 @@ function setupLazyLoadingForTweet(container) {
 
     const observerOptions = {
         root: null,
-        rootMargin: '200px',
+        rootMargin: '300px', // Increased margin to start loading earlier
         threshold: 0.01
     };
+
+    // Create a timeout to load tweets that don't enter viewport quickly
+    const fallbackTimeout = setTimeout(() => {
+        if (!container.classList.contains('loaded') && !container.classList.contains('loading')) {
+            console.log('[Lazy Load] Fallback triggered for container:', container);
+            const url = container.getAttribute('data-tweet-url');
+            const index = parseInt(container.getAttribute('data-tweet-index'));
+            loadTweet(url, container, index);
+        }
+    }, 5000); // Load after 5 seconds even if not in viewport
 
     // Use global observer if available, create new one if not
     if (typeof window.tweetObserver === 'undefined') {
         window.tweetObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting && !entry.target.classList.contains('loaded') && !entry.target.classList.contains('loading')) {
+                    clearTimeout(fallbackTimeout);
                     const container = entry.target;
                     const url = container.getAttribute('data-tweet-url');
                     const index = parseInt(container.getAttribute('data-tweet-index'));
 
+                    console.log('[Lazy Load] Tweet entered viewport, loading:', url);
                     container.classList.add('loading');
 
                     const loadingSpan = container.querySelector('.tweet-loading span');
@@ -1359,7 +1371,10 @@ function ensureTweetLoadingElement(container) {
     return loading;
 }
 
-// Load embedded tweet using Twitter's widget
+// Global setting for using custom tweet cards
+const USE_CUSTOM_TWEET_CARDS = true; // Set to false to use Twitter widgets
+
+// Load embedded tweet using Twitter's widget or custom card
 function loadTweet(url, container, index, options = {}) {
     const { force = false } = options;
     // Prevent duplicate loading unless forced
@@ -1384,6 +1399,12 @@ function loadTweet(url, container, index, options = {}) {
         container.innerHTML = '<p class="tweet-error">Failed to load tweet, please refresh</p>';
         container.classList.add('loaded');
         container.classList.remove('loading');
+        return;
+    }
+
+    // Use custom tweet cards if enabled
+    if (USE_CUSTOM_TWEET_CARDS) {
+        loadCustomTweetCard(tweetId, container);
         return;
     }
 
@@ -1418,6 +1439,20 @@ function loadTweet(url, container, index, options = {}) {
 
     const renderTweet = () => {
         const tweetTheme = getCurrentTheme();
+        // Add timeout to handle slow loading
+        const tweetLoadTimeout = setTimeout(() => {
+            if (!container.classList.contains('loaded')) {
+                container.innerHTML = `
+                    <div class="tweet-error" style="padding: 20px; text-align: center; color: var(--text-secondary);">
+                        <p>Tweet loading timeout</p>
+                        <a href="${url}" target="_blank" style="color: var(--accent);">View on Twitter</a>
+                    </div>
+                `;
+                container.classList.add('loaded');
+                container.classList.remove('loading');
+            }
+        }, 15000); // 15 second timeout
+        
         window.twttr.widgets.createTweet(
             tweetId,
             target,
@@ -1427,9 +1462,11 @@ function loadTweet(url, container, index, options = {}) {
                 conversation: 'none',
                 cards: 'visible',
                 align: 'center',
-                width: '100%'
+                width: '100%',
+                lang: 'en'
             }
         ).then(function (el) {
+            clearTimeout(tweetLoadTimeout);
             // Remove loading spinner after tweet loads
             if (loading) {
                 loading.remove();
@@ -1440,10 +1477,27 @@ function loadTweet(url, container, index, options = {}) {
                 // Ensure proper alignment after loading
                 container.parentElement.style.alignSelf = 'flex-start';
             } else {
-                container.innerHTML = '<p class="tweet-error">Failed to load tweet, please refresh</p>';
+                // Show fallback link if tweet embedding fails
+                container.innerHTML = `
+                    <div class="tweet-error" style="padding: 20px; text-align: center; color: var(--text-secondary);">
+                        <p>Unable to embed tweet</p>
+                        <a href="${url}" target="_blank" style="color: var(--accent);">View on Twitter</a>
+                    </div>
+                `;
                 container.classList.add('loaded');
                 container.classList.remove('loading');
             }
+        }).catch(function (err) {
+            clearTimeout(tweetLoadTimeout);
+            console.error('Twitter widget error:', err);
+            container.innerHTML = `
+                <div class="tweet-error" style="padding: 20px; text-align: center; color: var(--text-secondary);">
+                    <p>Error loading tweet</p>
+                    <a href="${url}" target="_blank" style="color: var(--accent);">View on Twitter</a>
+                </div>
+            `;
+            container.classList.add('loaded');
+            container.classList.remove('loading');
         });
     };
 
@@ -1463,7 +1517,13 @@ function loadTweet(url, container, index, options = {}) {
         setTimeout(() => {
             clearInterval(checkTwitter);
             if (!container.classList.contains('loaded') && container.querySelector('.tweet-loading')) {
-                container.innerHTML = '<p class="tweet-error">Load timeout, please refresh</p>';
+                container.innerHTML = `
+                    <div class="tweet-error" style="padding: 20px; text-align: center; color: var(--text-secondary);">
+                        <p>Twitter widget failed to load</p>
+                        <p style="font-size: 0.8rem; margin-top: 4px;">This may be due to network issues or ad blockers</p>
+                        <a href="${url}" target="_blank" style="color: var(--accent);">View on Twitter</a>
+                    </div>
+                `;
                 container.classList.add('loaded');
                 container.classList.remove('loading');
             }
@@ -1491,6 +1551,97 @@ function reloadAllTweetEmbeds() {
         loadTweet(url, container, index, { force: true });
     });
 }
+
+// Function to retry failed tweet loads
+function retryFailedTweets() {
+    document.querySelectorAll('.tweet-embed-container:not(.loaded):not(.loading)').forEach(container => {
+        const url = container.getAttribute('data-tweet-url');
+        const index = parseInt(container.getAttribute('data-tweet-index'), 10);
+        if (!url || Number.isNaN(index)) return;
+        
+        console.log('[Retry] Attempting to reload failed tweet:', url);
+        loadTweet(url, container, index, { force: true });
+    });
+}
+
+// Auto-retry failed tweets after a delay
+setTimeout(() => {
+    retryFailedTweets();
+}, 10000); // 10 seconds after page load
+
+// Add a reload button to the page for manual retries
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if reload button already exists
+    if (document.getElementById('reloadTweetsBtn')) return;
+    
+    const reloadBtn = document.createElement('button');
+    reloadBtn.id = 'reloadTweetsBtn';
+    reloadBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 4v6h6"></path>
+            <path d="M23 20v-6h-6"></path>
+            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+        </svg>
+        Reload Tweets
+    `;
+    reloadBtn.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: var(--accent);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 15px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        z-index: 1000;
+        font-family: inherit;
+        box-shadow: var(--shadow-md);
+        transition: all 0.2s ease;
+    `;
+    
+    reloadBtn.addEventListener('mouseenter', () => {
+        reloadBtn.style.transform = 'translateY(-2px)';
+        reloadBtn.style.boxShadow = 'var(--shadow-lg)';
+    });
+    
+    reloadBtn.addEventListener('mouseleave', () => {
+        reloadBtn.style.transform = 'translateY(0)';
+        reloadBtn.style.boxShadow = 'var(--shadow-md)';
+    });
+    
+    reloadBtn.addEventListener('click', () => {
+        reloadBtn.disabled = true;
+        reloadBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 4v6h6"></path>
+                <path d="M23 20v-6h-6"></path>
+                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+            </svg>
+            Reloading...
+        `;
+        
+        retryFailedTweets();
+        reloadAllTweetEmbeds();
+        
+        setTimeout(() => {
+            reloadBtn.disabled = false;
+            reloadBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 4v6h6"></path>
+                    <path d="M23 20v-6h-6"></path>
+                    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+                </svg>
+                Reload Tweets
+            `;
+        }, 3000);
+    });
+    
+    document.body.appendChild(reloadBtn);
+});
 
 // Global State
 const paramDate = urlParams.get('date');
@@ -2858,4 +3009,35 @@ async function downloadDayAsImage(button, container, dateLabel) {
             button.innerHTML = originalIcon;
         }, 2000);
     }
+}
+
+// Load custom tweet card instead of Twitter widget
+function loadCustomTweetCard(tweetId, container) {
+    // Check if CustomTweetCard class is available
+    if (typeof window.CustomTweetCard !== 'function') {
+        console.error('CustomTweetCard class not available, falling back to default embed');
+        USE_CUSTOM_TWEET_CARDS = false;
+        return;
+    }
+
+    container.classList.add('loading');
+    container.classList.remove('loaded');
+    
+    const customCard = new window.CustomTweetCard(tweetId, container);
+    customCard.load().then(() => {
+        container.classList.add('loaded');
+        container.classList.remove('loading');
+    }).catch(error => {
+        console.error('Custom tweet card failed:', error);
+        container.classList.add('loaded');
+        container.classList.remove('loading');
+        
+        // Fallback to direct link
+        container.innerHTML = `
+            <div class="tweet-error" style="padding: 20px; text-align: center; color: var(--text-secondary);">
+                <p>Unable to load tweet</p>
+                <a href="https://twitter.com/status/${tweetId}" target="_blank" style="color: var(--accent);">View on X</a>
+            </div>
+        `;
+    });
 }

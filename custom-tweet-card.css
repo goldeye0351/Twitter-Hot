@@ -1,0 +1,256 @@
+/* Custom Tweet Card Styles */
+.custom-tweet-card {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.4;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    max-width: 500px;
+}
+
+.custom-tweet-card:hover {
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-sm);
+}
+
+.custom-tweet-card.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    flex-direction: column;
+}
+
+.custom-tweet-card.error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 20px;
+}
+
+.tweet-header {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.tweet-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    margin-right: 12px;
+    background-color: var(--bg-tertiary);
+}
+
+.tweet-user-info {
+    flex: 1;
+}
+
+.tweet-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.tweet-username {
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.tweet-date {
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.tweet-content {
+    margin-bottom: 12px;
+}
+
+.tweet-text {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin-bottom: 12px;
+}
+
+.tweet-text a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.tweet-text a:hover {
+    text-decoration: underline;
+}
+
+.tweet-media {
+    margin-top: 12px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.tweet-images {
+    display: grid;
+    gap: 2px;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.tweet-images.single-image {
+    grid-template-columns: 1fr;
+}
+
+.tweet-images.two-images {
+    grid-template-columns: 1fr 1fr;
+}
+
+.tweet-images.multiple-images {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+.tweet-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    max-height: 300px;
+}
+
+.tweet-video {
+    width: 100%;
+}
+
+.tweet-video video {
+    width: 100%;
+    max-height: 300px;
+    border-radius: 12px;
+    background-color: var(--bg-tertiary);
+}
+
+.tweet-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.tweet-stats {
+    display: flex;
+    gap: 24px;
+}
+
+.tweet-stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.tweet-stat svg {
+    width: 18px;
+    height: 18px;
+}
+
+.tweet-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.tweet-action-btn {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tweet-action-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--border-hover);
+}
+
+.view-on-twitter {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.view-on-twitter:hover {
+    background: rgba(184, 134, 11, 0.1);
+}
+
+.error-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.error-message p {
+    margin: 8px 0;
+}
+
+.error-detail {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+/* Light mode adjustments */
+.custom-tweet-card.light {
+    background: #ffffff;
+    border-color: #e1e8ed;
+    color: #14171a;
+}
+
+.custom-tweet-card.light:hover {
+    border-color: #c7ced3;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.custom-tweet-card.light .tweet-username,
+.custom-tweet-card.light .tweet-date,
+.custom-tweet-card.light .tweet-stat {
+    color: #657786;
+}
+
+.custom-tweet-card.light .tweet-action-btn {
+    border-color: #e1e8ed;
+    color: #657786;
+}
+
+.custom-tweet-card.light .tweet-action-btn:hover {
+    background: #f5f8fa;
+    color: #14171a;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .custom-tweet-card {
+        border-radius: 12px;
+        padding: 12px;
+    }
+    
+    .tweet-avatar {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .tweet-footer {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+}

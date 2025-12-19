@@ -4,7 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' https://platform.twitter.com https://*.twitter.com https://*.vercel-insights.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https:; frame-src https://platform.twitter.com https://*.twitter.com">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' https://platform.twitter.com https://*.twitter.com https://cdn.syndication.twimg.com https://*.vercel-insights.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https:; frame-src https://platform.twitter.com https://*.twitter.com https://cdn.syndication.twimg.com">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>🍌 Nano Banana Pro Prompt | Daily Highlights</title>
     <meta name="description"
         content="Daily curated content about nano banana pro prompt from Twitter, featuring trending discussions and insights">
@@ -23,6 +26,7 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="tweet-detail-modal.css">
+    <link rel="stylesheet" href="custom-tweet-card.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -274,6 +278,7 @@
     </script>
     <script src="script.js"></script>
     <script src="tweet-detail-modal.js"></script>
+    <script src="custom-tweet-card.js"></script>
 
     <!-- Tweet Detail Modal Component -->
     <div class="tweet-detail-modal" id="tweetDetailModal">
@@ -358,8 +363,50 @@
     </div>
 
     <!-- Twitter Widget Script for Embedded Tweets -->
-    <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"
-        onerror="window.twitterScriptFailed=true; console.error('Twitter widgets script failed to load - likely blocked');"></script>
+    <script>
+        // Load Twitter widget with multiple fallbacks
+        (function() {
+            const loadTwitterWidget = () => {
+                const script = document.createElement('script');
+                script.src = 'https://platform.twitter.com/widgets.js';
+                script.charset = 'utf-8';
+                script.async = true;
+                
+                script.onload = function() {
+                    console.log('[Twitter] Widget loaded successfully');
+                };
+                
+                script.onerror = function() {
+                    console.error('[Twitter] Widget failed to load from primary source');
+                    // Try fallback source
+                    const fallbackScript = document.createElement('script');
+                    fallbackScript.src = 'https://cdn.syndication.twimg.com/widgets.js';
+                    fallbackScript.charset = 'utf-8';
+                    fallbackScript.async = true;
+                    
+                    fallbackScript.onload = function() {
+                        console.log('[Twitter] Widget loaded from fallback source');
+                    };
+                    
+                    fallbackScript.onerror = function() {
+                        console.error('[Twitter] All widget sources failed');
+                        window.twitterScriptFailed = true;
+                    };
+                    
+                    document.head.appendChild(fallbackScript);
+                };
+                
+                document.head.appendChild(script);
+            };
+            
+            // Try to load immediately
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', loadTwitterWidget);
+            } else {
+                loadTwitterWidget();
+            }
+        })();
+    </script>
 
     <script>
         window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
