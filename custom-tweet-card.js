@@ -56,7 +56,7 @@ class CustomTweetCard {
         this.container.innerHTML = `
             <div class="custom-tweet-card ${theme}">
                 <div class="tweet-header">
-                    <img class="tweet-avatar" src="${this.data.user_profile_image_url || '/default-avatar.png'}" alt="Avatar">
+                    <img class="tweet-avatar" src="${this.data.user_profile_image_url || '/default-avatar.png'}" alt="Avatar" crossOrigin="anonymous">
                     <div class="tweet-user-info">
                         <div class="tweet-name">${this.data.user_name || 'Unknown'}</div>
                         <div class="tweet-username">@${this.data.user_screen_name || 'unknown'}</div>
@@ -117,7 +117,7 @@ class CustomTweetCard {
             
             mediaHTML += `<div class="tweet-images ${gridClass}">`;
             images.forEach((img, i) => {
-                mediaHTML += `<img src="${img.url}" alt="Tweet image ${i+1}" class="tweet-image">`;
+                mediaHTML += `<img src="${img.url}" alt="Tweet image ${i+1}" class="tweet-image" crossOrigin="anonymous">`;
             });
             mediaHTML += '</div>';
         }

@@ -622,27 +622,20 @@
         }
 
         .image-mode-grid {
-            column-count: 4;
-            column-gap: 4px;
+            display: flex;
+            gap: 4px;
+            align-items: flex-start;
         }
 
-        @media (max-width: 1200px) {
-            .image-mode-grid {
-                column-count: 3;
-            }
+        .masonry-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
         }
 
-        @media (max-width: 900px) {
-            .image-mode-grid {
-                column-count: 2;
-            }
-        }
-
-        @media (max-width: 540px) {
-            .image-mode-grid {
-                column-count: 1;
-            }
-        }
+        /* Removed column-count based media queries as we handle columns in JS now */
 
         .image-mode-card {
             background: var(--card);
@@ -1239,8 +1232,12 @@
 
         // 应用日期筛选
         function applyDateFilter() {
-            const allCards = document.querySelectorAll('.image-mode-card');
+            // 获取所有卡片（包括可能在列中的或隐藏的）
+            // 注意：由于现在的结构是 列 -> 卡片，querySelectorAll 依然有效
+            const allCards = Array.from(document.querySelectorAll('.image-mode-card'));
+            const container = document.getElementById('linkListImages');
 
+            // 先设置显隐状态
             allCards.forEach(card => {
                 const date = card.dataset.date;
 
@@ -1255,6 +1252,17 @@
                     card.style.display = 'none';
                 }
             });
+
+            // 重新布局以填补空缺
+            // 保持按点赞数排序的顺序
+            allCards.sort((a, b) => {
+                const likesA = parseInt(a.dataset.likes) || 0;
+                const likesB = parseInt(b.dataset.likes) || 0;
+                if (likesB !== likesA) return likesB - likesA;
+                return parseInt(a.dataset.index) - parseInt(b.dataset.index);
+            });
+
+            distributeCardsToColumns(container, allCards);
 
             // 更新计数
             updateCounts();
@@ -1424,11 +1432,60 @@
             updateCounts();
         }
 
+        function getMasonryColumnCount() {
+            const width = window.innerWidth;
+            if (width <= 540) return 1;
+            if (width <= 900) return 2;
+            if (width <= 1200) return 3;
+            return 4;
+        }
+
+        function distributeCardsToColumns(container, cards) {
+            // 保存当前的滚动位置（如果需要）
+            
+            container.innerHTML = '';
+            const colCount = getMasonryColumnCount();
+            const columns = [];
+            
+            // 创建列
+            for (let i = 0; i < colCount; i++) {
+                const col = document.createElement('div');
+                col.className = 'masonry-column';
+                columns.push(col);
+                container.appendChild(col);
+            }
+
+            // 分配卡片
+            cards.forEach((card, index) => {
+                if (index < colCount) {
+                    // 第一行直接按顺序填充
+                    columns[index].appendChild(card);
+                } else {
+                    // 后续行填充到最短的列
+                    let minHeight = Infinity;
+                    let targetCol = columns[0];
+                    
+                    columns.forEach(col => {
+                        // 使用 offsetHeight 获取高度，这会触发回流，但在卡片数量不多时可以接受
+                        if (col.offsetHeight < minHeight) {
+                            minHeight = col.offsetHeight;
+                            targetCol = col;
+                        }
+                    });
+                    
+                    targetCol.appendChild(card);
+                }
+            });
+        }
+
         function renderImagePreview(urls, container) {
             console.log('[Debug] renderImagePreview called with', urls.length, 'URLs');
-            container.innerHTML = '';
+            // 不要立即清空，让 distributeCardsToColumns 处理
+            // container.innerHTML = ''; 
+            
             let loadedCount = 0;
             const totalUrls = urls.length;
+            const cards = [];
 
             urls.forEach((url, index) => {
                 const wrapper = document.createElement('div');
@@ -1505,7 +1562,7 @@
                     }
                 });
 
-                container.appendChild(wrapper);
+                cards.push(wrapper);
 
                 const id = extractTweetId(url);
                 if (!id) {
@@ -1627,6 +1684,9 @@
                         }
                     });
             });
+
+            // 初始分配卡片到列
+            distributeCardsToColumns(container, cards);
         }
 
         // 按点赞数对图片卡片进行降序排序
@@ -1640,9 +1700,8 @@
                 return likesB - likesA; // 降序
             });
 
-            // 清空容器并按新顺序重新插入
-            container.innerHTML = '';
-            cards.forEach(card => container.appendChild(card));
+            // 使用 distributeCardsToColumns 重新布局
+            distributeCardsToColumns(container, cards);
         }
 
         function initializeTweetLazyLoading() {
@@ -1904,6 +1963,57 @@
                         }
                     }
                 }
+            });
+
+            // 窗口大小改变时重新布局
+            let resizeTimer;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(() => {
+                    const container = document.getElementById('linkListImages');
+                    if (container.style.display !== 'none' && container.childElementCount > 0) {
+                        // 获取所有卡片（它们现在分散在各列中）
+                        // 注意：需要按原来的视觉顺序或者数据顺序收集？
+                        // 如果已经排序过，DOM顺序就是排序后的顺序（列1卡片1, 列1卡片2... 列2卡片1...）
+                        // 这样直接 querySelectorAll 会按 DOM 树顺序获取：先第一列所有，再第二列所有...
+                        // 这可能会打乱“按喜欢数排序”的整体顺序吗？
+                        // 是的。因为 Masonry 布局是横向分布的，而 DOM 结构是纵向分列的。
+                        // 如果直接按 DOM 顺序重排，会变成：原第一列的全部 -> 原第二列的全部...
+                        // 这会导致重新布局后的顺序错乱。
+                        
+                        // 解决方案：我们需要根据 dataset.likes 重新排序，或者如果不想改变顺序，需要一种方式恢复。
+                        // 但既然我们总是希望按 likes 排序，或者按初始顺序（如果没有 likes），我们可以再次执行排序逻辑。
+                        // 如果还没加载完，可能还没排序。
+                        
+                        // 简单起见，我们重新获取所有卡片，按 index 或者 likes 排序。
+                        // 由于 sortImageCardsByLikes 已经实现了按 likes 排序，我们可以直接利用它？
+                        // 但 sortImageCardsByLikes 只在加载完成后调用。
+                        
+                        // 这里我们应该尽量保持当前的顺序。
+                        // 我们可以根据卡片在 DOM 中的位置推断其顺序吗？很难。
+                        // 最好的办法是根据 dataset.index (原始顺序) 或者 dataset.likes (如果已排序) 来排序。
+                        
+                        const cards = Array.from(container.querySelectorAll('.image-mode-card'));
+                        
+                        // 检查是否已经有点赞数数据（说明已经加载并排序过）
+                        const hasLikesData = cards.some(c => parseInt(c.dataset.likes) > 0);
+                        
+                        if (hasLikesData) {
+                            cards.sort((a, b) => {
+                                const likesA = parseInt(a.dataset.likes) || 0;
+                                const likesB = parseInt(b.dataset.likes) || 0;
+                                // 如果点赞数相同，按 index 保持稳定
+                                if (likesB !== likesA) return likesB - likesA;
+                                return parseInt(a.dataset.index) - parseInt(b.dataset.index);
+                            });
+                        } else {
+                            // 还没加载完，按原始 index 排序
+                            cards.sort((a, b) => parseInt(a.dataset.index) - parseInt(b.dataset.index));
+                        }
+                        
+                        distributeCardsToColumns(container, cards);
+                    }
+                }, 200);
             });
         });
 

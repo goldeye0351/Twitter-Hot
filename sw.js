@@ -1,5 +1,5 @@
-const CACHE_NAME = 'banana-hot-v1';
-const MEDIA_CACHE_NAME = 'banana-media-v1';
+const CACHE_NAME = 'banana-hot-v8';
+const MEDIA_CACHE_NAME = 'banana-media-v8';
 
 // Assets to cache immediately on install
 const PRE_CACHE_ASSETS = [

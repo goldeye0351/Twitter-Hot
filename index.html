@@ -24,9 +24,9 @@
         })();
     </script>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="tweet-detail-modal.css">
-    <link rel="stylesheet" href="custom-tweet-card.css">
+    <link rel="stylesheet" href="styles.css?v=8">
+    <link rel="stylesheet" href="tweet-detail-modal.css?v=8">
+    <link rel="stylesheet" href="custom-tweet-card.css?v=8">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -59,10 +59,10 @@
                     </svg>
                     Filter
                 </a>
-                <!-- View Toggle -->
+                <!-- View Toggle (Hidden) -->
                 <div class="view-toggle"
-                    style="display: flex; background: var(--bg-secondary); padding: 2px; border-radius: 8px; flex-shrink: 0;">
-                    <button class="view-btn active" data-view="list"
+                    style="display: none !important; background: var(--bg-secondary); padding: 2px; border-radius: 8px; flex-shrink: 0;">
+                    <button class="view-btn" data-view="list"
                         style="border: none; background: transparent; padding: 4px 8px; border-radius: 6px; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; font-size: 0.8rem;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
@@ -75,7 +75,7 @@
                         </svg>
                         List
                     </button>
-                    <button class="view-btn" data-view="gallery"
+                    <button class="view-btn active" data-view="gallery"
                         style="border: none; background: transparent; padding: 4px 8px; border-radius: 6px; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; font-size: 0.8rem;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
@@ -276,9 +276,9 @@
             attemptToLoadLibraries();
         })();
     </script>
-    <script src="script.js"></script>
-    <script src="tweet-detail-modal.js"></script>
-    <script src="custom-tweet-card.js"></script>
+    <script src="script.js?v=8"></script>
+    <script src="tweet-detail-modal.js?v=8"></script>
+    <script src="custom-tweet-card.js?v=8"></script>
 
     <!-- Tweet Detail Modal Component -->
     <div class="tweet-detail-modal" id="tweetDetailModal">

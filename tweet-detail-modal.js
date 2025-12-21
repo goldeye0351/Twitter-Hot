@@ -205,9 +205,9 @@ function getThumbnailHtml(cardData, card = null) {
                 thumbUrl = firstMedia.url || firstMedia.media_url_https;
             }
 
-            return `<img src="${thumbUrl}" alt="Thumbnail">`;
+            return `<img src="${thumbUrl}" alt="Thumbnail" crossOrigin="anonymous">`;
         } else if (cardData.mediaURLs && cardData.mediaURLs.length > 0) {
-            return `<img src="${cardData.mediaURLs[0]}" alt="Thumbnail">`;
+            return `<img src="${cardData.mediaURLs[0]}" alt="Thumbnail" crossOrigin="anonymous">`;
         } else {
             return `<div class="thumbnail-item-placeholder">${(cardData.text || '').substring(0, 20)}</div>`;
         }
@@ -541,6 +541,7 @@ function updateCardDisplay(index) {
 
                 if (!isVideo) {
                     const imgEl = document.createElement('img');
+                    imgEl.crossOrigin = 'anonymous';
                     // Add smooth load transition
                     imgEl.onload = () => {
                         imgEl.style.opacity = '1';

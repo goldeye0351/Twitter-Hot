@@ -258,11 +258,11 @@ function fetchTweetMedia(tweetId, signal = null) {
 }
 
 // Render content based on current view mode
-function renderContent(append = false) {
+function renderContent(append = false, dateLabel = null) {
     const contentList = document.getElementById('contentList');
     if (!contentList) return;
 
-    const currentView = localStorage.getItem('viewMode') || 'list';
+    const currentView = 'gallery'; // Forced gallery mode
     updateViewToggleUI(currentView);
 
     if (!append) {
@@ -271,16 +271,39 @@ function renderContent(append = false) {
     }
 
     if (currentView === 'gallery') {
-        renderImageGallery(contentList, append);
+        renderImageGallery(contentList, append, 0, dateLabel);
     } else {
-        renderTweetList(contentList, append);
+        renderTweetList(contentList, append, 0, dateLabel);
     }
 }
 
 // Render Standard Tweet List (Masonry) - Optimized for fast rendering
 function renderTweetList(container, append = false, startIndex = 0, dateLabel = null) {
+    // Helper function to get column count based on screen width
+    const getColumnCount = () => {
+        const width = window.innerWidth;
+        if (width <= 540) return 1;
+        if (width <= 768) return 2;
+        if (width <= 1024) return 3;
+        return 3; // Default to 3 columns for List mode (less than Gallery's 4)
+    };
+
+    // Helper function to create columns
+    const createColumns = (container) => {
+        const columnCount = getColumnCount();
+        const cols = [];
+        for (let i = 0; i < columnCount; i++) {
+            const col = document.createElement('div');
+            col.className = 'masonry-column';
+            container.appendChild(col);
+            cols.push(col);
+        }
+        return cols;
+    };
+
     // Create new masonry grid for each day if appending
     let masonryContainer;
+    let columns = [];
 
     if (append && dateLabel) {
         // Create wrapper for the day section
@@ -296,6 +319,9 @@ function renderTweetList(container, append = false, startIndex = 0, dateLabel = 
         masonryContainer = document.createElement('div');
         masonryContainer.className = 'masonry-grid';
         daySection.appendChild(masonryContainer);
+
+        // Create columns
+        columns = createColumns(masonryContainer);
     } else if (append) {
         // Continue with existing masonry grid
         masonryContainer = container.querySelector('.masonry-grid:last-child');
@@ -309,13 +335,18 @@ function renderTweetList(container, append = false, startIndex = 0, dateLabel = 
             masonryContainer = document.createElement('div');
             masonryContainer.className = 'masonry-grid';
             daySection.appendChild(masonryContainer);
+
+            columns = createColumns(masonryContainer);
+        } else {
+            // Get existing columns
+            columns = Array.from(masonryContainer.querySelectorAll('.masonry-column'));
         }
     } else {
         // Initial load: clear and create first grid
         container.innerHTML = '';
 
-        // Use the current date if available (usually the first date)
-        const dateStr = (typeof currentDate !== 'undefined' && currentDate) ? currentDate : null;
+        // Use the provided dateLabel, or fall back to current date
+        const dateStr = dateLabel || ((typeof currentDate !== 'undefined' && currentDate) ? currentDate : null);
 
         const daySection = document.createElement('div');
         daySection.className = 'day-section';
@@ -330,10 +361,34 @@ function renderTweetList(container, append = false, startIndex = 0, dateLabel = 
         masonryContainer = document.createElement('div');
         masonryContainer.className = 'masonry-grid';
         daySection.appendChild(masonryContainer);
+
+        // Create columns
+        columns = createColumns(masonryContainer);
     }
 
     // Calculate the starting tweet index for this render
     const tweetsToRender = tweetUrls.slice(startIndex);
+
+    // Initialize virtual column heights
+    // If appending, start with current DOM heights. If new, start with 0.
+    const virtualColumnHeights = columns.map(col => col.offsetHeight || 0);
+    // Estimated height for a tweet card (used for distribution logic)
+    const ESTIMATED_CARD_HEIGHT = 300; 
+
+    // Helper to get next target column index
+    const getNextTargetColumn = () => {
+        let minHeight = Infinity;
+        let minIndex = 0;
+        for (let i = 0; i < virtualColumnHeights.length; i++) {
+            if (virtualColumnHeights[i] < minHeight) {
+                minHeight = virtualColumnHeights[i];
+                minIndex = i;
+            }
+        }
+        // Update virtual height
+        virtualColumnHeights[minIndex] += ESTIMATED_CARD_HEIGHT;
+        return columns[minIndex];
+    };
 
     // 首屏优先策略：立即渲染前8个，其余用requestIdleCallback
     const visibleCount = 8;
@@ -345,9 +400,10 @@ function renderTweetList(container, append = false, startIndex = 0, dateLabel = 
         const actualIndex = startIndex + index;
         // 只给前3个保留微小延迟增加动画感
         const delay = index < 3 ? index * 15 : 0;
+        const targetColumn = getNextTargetColumn(); 
 
         setTimeout(() => {
-            renderTweetCard(url, actualIndex, masonryContainer);
+            renderTweetCard(url, actualIndex, targetColumn);
         }, delay);
     });
 
@@ -355,7 +411,8 @@ function renderTweetList(container, append = false, startIndex = 0, dateLabel = 
     const renderRemaining = () => {
         remainingTweets.forEach((url, index) => {
             const actualIndex = startIndex + visibleCount + index;
-            renderTweetCard(url, actualIndex, masonryContainer);
+            const targetColumn = getNextTargetColumn();
+            renderTweetCard(url, actualIndex, targetColumn);
         });
     };
 
@@ -369,7 +426,7 @@ function renderTweetList(container, append = false, startIndex = 0, dateLabel = 
 }
 
 // 提取渲染单个tweet卡片的逻辑
-function renderTweetCard(url, actualIndex, masonryContainer) {
+function renderTweetCard(url, actualIndex, targetColumn) {
     const contentItem = document.createElement('div');
     contentItem.className = 'masonry-item';
     contentItem.style.opacity = '0';
@@ -383,7 +440,7 @@ function renderTweetCard(url, actualIndex, masonryContainer) {
             <div id="tweet-target-${actualIndex}"></div>
         </div>
     `;
-    masonryContainer.appendChild(contentItem);
+    targetColumn.appendChild(contentItem);
 
     // Trigger fade-in animation
     requestAnimationFrame(() => {
@@ -451,6 +508,36 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
 
     // Create new gallery grid for each day if appending
     let galleryContainer;
+    let columns = [];
+
+    // Helper function to get column count based on screen width
+    const getColumnCount = () => {
+        const width = window.innerWidth;
+        if (width <= 540) return 1;
+        if (width <= 768) return 2;
+        if (width <= 1024) return 3;
+        return 4; // Default to 4 columns for wider screens
+    };
+
+    // Helper function to create columns
+    const createColumns = (container) => {
+        const columnCount = getColumnCount();
+        const cols = [];
+        for (let i = 0; i < columnCount; i++) {
+            const col = document.createElement('div');
+            col.className = 'image-gallery-column';
+            container.appendChild(col);
+            cols.push(col);
+        }
+        return cols;
+    };
+
+    // Helper function to get shortest column
+    const getShortestColumn = (cols) => {
+        return cols.reduce((shortest, col) => {
+            return col.offsetHeight < shortest.offsetHeight ? col : shortest;
+        }, cols[0]);
+    };
 
     if (append && dateLabel) {
         // Create wrapper for the day section
@@ -466,6 +553,9 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
         galleryContainer = document.createElement('div');
         galleryContainer.className = 'image-gallery-grid';
         daySection.appendChild(galleryContainer);
+
+        // Create columns
+        columns = createColumns(galleryContainer);
     } else if (append) {
         // Continue with existing gallery grid
         galleryContainer = container.querySelector('.image-gallery-grid:last-child');
@@ -479,13 +569,18 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
             galleryContainer = document.createElement('div');
             galleryContainer.className = 'image-gallery-grid';
             daySection.appendChild(galleryContainer);
+
+            columns = createColumns(galleryContainer);
+        } else {
+            // Get existing columns
+            columns = Array.from(galleryContainer.querySelectorAll('.image-gallery-column'));
         }
     } else {
         // Initial load: clear and create first grid
         container.innerHTML = '';
 
-        // Use the current date if available (usually the first date)
-        const dateStr = (typeof currentDate !== 'undefined' && currentDate) ? currentDate : null;
+        // Use the provided dateLabel, or fall back to current date
+        const dateStr = dateLabel || ((typeof currentDate !== 'undefined' && currentDate) ? currentDate : null);
 
         const daySection = document.createElement('div');
         daySection.className = 'day-section';
@@ -500,6 +595,9 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
         galleryContainer = document.createElement('div');
         galleryContainer.className = 'image-gallery-grid';
         daySection.appendChild(galleryContainer);
+
+        // Create columns
+        columns = createColumns(galleryContainer);
     }
 
     galleryObserverInstance = new IntersectionObserver((entries) => {
@@ -534,7 +632,7 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
                         if (mediaType === 'video') {
                             return `
                                 <div class="gallery-video-wrapper" style="position:relative;">
-                                    <img src="${imgUrl}" alt="Video thumbnail ${i + 1}" class="gallery-simple-img" style="opacity: 0;">
+                                    <img src="${imgUrl}" alt="Video thumbnail ${i + 1}" class="gallery-simple-img" style="opacity: 0;" crossOrigin="anonymous">
                                     <div class="gallery-video-indicator" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;background:rgba(0,0,0,0.7);border-radius:50%;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);pointer-events:none;">
                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
                                             <path d="M8 5v14l11-7z"/>
@@ -544,7 +642,7 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
                             `;
                         }
 
-                        return `<img src="${imgUrl}" alt="Tweet image ${i + 1}" class="gallery-simple-img" style="opacity: 0;">`;
+                        return `<img src="${imgUrl}" alt="Tweet image ${i + 1}" class="gallery-simple-img" style="opacity: 0;" crossOrigin="anonymous">`;
                     }).join('');
 
                     placeholder.innerHTML = imagesHTML;
@@ -597,8 +695,29 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
     const visibleItems = tweetsToRender.slice(0, visibleCount);
     const remainingItems = tweetsToRender.slice(visibleCount);
 
+    // Initialize virtual column heights for Masonry logic
+    // If appending, start with current DOM heights. If new, start with 0.
+    const virtualColumnHeights = columns.map(col => col.offsetHeight || 0);
+    // Estimated height for a gallery item (thumb placeholder + icons)
+    const ESTIMATED_GALLERY_ITEM_HEIGHT = 200; 
+
+    // Helper to get next target column index (Shortest column first)
+    const getNextTargetColumn = () => {
+        let minHeight = Infinity;
+        let minIndex = 0;
+        for (let i = 0; i < virtualColumnHeights.length; i++) {
+            if (virtualColumnHeights[i] < minHeight) {
+                minHeight = virtualColumnHeights[i];
+                minIndex = i;
+            }
+        }
+        // Update virtual height
+        virtualColumnHeights[minIndex] += ESTIMATED_GALLERY_ITEM_HEIGHT;
+        return columns[minIndex];
+    };
+
     // 渲染单个gallery item的函数
-    const renderGalleryItem = (url, tweetIndex, delay = 0) => {
+    const renderGalleryItem = (url, tweetIndex, targetColumn, delay = 0) => {
         setTimeout(() => {
             const wrapper = document.createElement('div');
             wrapper.className = 'gallery-item';
@@ -654,7 +773,7 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
                     </a>
                 </div>
             `;
-            galleryContainer.appendChild(wrapper);
+            targetColumn.appendChild(wrapper);
 
             // Fade in animation
             requestAnimationFrame(() => {
@@ -708,7 +827,8 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
     visibleItems.forEach((url, index) => {
         const tweetIndex = startIndex + index;
         const delay = index < 4 ? index * 10 : 0; // 前4个有小延迟
-        renderGalleryItem(url, tweetIndex, delay);
+        const targetColumn = getNextTargetColumn(); 
+        renderGalleryItem(url, tweetIndex, targetColumn, delay);
     });
 
     // 剩余部分用requestIdleCallback
@@ -716,7 +836,8 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
         const renderRemaining = () => {
             remainingItems.forEach((url, index) => {
                 const tweetIndex = startIndex + visibleCount + index;
-                renderGalleryItem(url, tweetIndex, 0);
+                const targetColumn = getNextTargetColumn();
+                renderGalleryItem(url, tweetIndex, targetColumn, 0);
             });
         };
 
@@ -1099,7 +1220,7 @@ function updateImageViewer() {
             <div class="viewer-image-loading">
                 <div class="loading-spinner small"></div>
             </div>
-            <img class="viewer-image" data-src="${imgUrl}" alt="Tweet image ${index + 1}">
+            <img class="viewer-image" data-src="${imgUrl}" alt="Tweet image ${index + 1}" crossOrigin="anonymous">
         </div>
         `;
     }).join('');
@@ -1256,14 +1377,23 @@ function updateViewToggleUI(view) {
     document.querySelectorAll('.view-btn').forEach(btn => {
         if (btn.dataset.view === view) {
             btn.classList.add('active');
-            btn.style.background = 'var(--bg-card)';
-            btn.style.color = 'var(--text-primary)';
-            btn.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
+            // Enhanced visual feedback for active button
+            if (document.documentElement.classList.contains('light-mode')) {
+                btn.style.background = '#ffffff';
+                btn.style.color = '#14171a';
+                btn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
+            } else {
+                btn.style.background = '#ffffff';
+                btn.style.color = '#000000';
+                btn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.25)';
+            }
+            btn.style.fontWeight = '600';
         } else {
             btn.classList.remove('active');
             btn.style.background = 'transparent';
             btn.style.color = 'var(--text-secondary)';
             btn.style.boxShadow = 'none';
+            btn.style.fontWeight = 'normal';
         }
     });
 }
@@ -1452,7 +1582,7 @@ function loadTweet(url, container, index, options = {}) {
                 container.classList.remove('loading');
             }
         }, 15000); // 15 second timeout
-        
+
         window.twttr.widgets.createTweet(
             tweetId,
             target,
@@ -1558,7 +1688,7 @@ function retryFailedTweets() {
         const url = container.getAttribute('data-tweet-url');
         const index = parseInt(container.getAttribute('data-tweet-index'), 10);
         if (!url || Number.isNaN(index)) return;
-        
+
         console.log('[Retry] Attempting to reload failed tweet:', url);
         loadTweet(url, container, index, { force: true });
     });
@@ -1570,10 +1700,10 @@ setTimeout(() => {
 }, 10000); // 10 seconds after page load
 
 // Add a reload button to the page for manual retries
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Check if reload button already exists
     if (document.getElementById('reloadTweetsBtn')) return;
-    
+
     const reloadBtn = document.createElement('button');
     reloadBtn.id = 'reloadTweetsBtn';
     reloadBtn.innerHTML = `
@@ -1602,17 +1732,17 @@ document.addEventListener('DOMContentLoaded', function() {
         box-shadow: var(--shadow-md);
         transition: all 0.2s ease;
     `;
-    
+
     reloadBtn.addEventListener('mouseenter', () => {
         reloadBtn.style.transform = 'translateY(-2px)';
         reloadBtn.style.boxShadow = 'var(--shadow-lg)';
     });
-    
+
     reloadBtn.addEventListener('mouseleave', () => {
         reloadBtn.style.transform = 'translateY(0)';
         reloadBtn.style.boxShadow = 'var(--shadow-md)';
     });
-    
+
     reloadBtn.addEventListener('click', () => {
         reloadBtn.disabled = true;
         reloadBtn.innerHTML = `
@@ -1623,10 +1753,10 @@ document.addEventListener('DOMContentLoaded', function() {
             </svg>
             Reloading...
         `;
-        
+
         retryFailedTweets();
         reloadAllTweetEmbeds();
-        
+
         setTimeout(() => {
             reloadBtn.disabled = false;
             reloadBtn.innerHTML = `
@@ -1639,7 +1769,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         }, 3000);
     });
-    
+
     document.body.appendChild(reloadBtn);
 });
 
@@ -1975,7 +2105,7 @@ window.loadNextDateForModal = function () {
         }
 
         // Count current cards before loading
-        const currentView = localStorage.getItem('viewMode') || 'list';
+        const currentView = 'gallery'; // Forced gallery mode
         const cardSelector = currentView === 'gallery' ? '.gallery-item' : '.masonry-item';
         const currentCardCount = contentList.querySelectorAll(cardSelector).length;
 
@@ -2027,7 +2157,7 @@ window.loadNextDateForModal = function () {
 
 // Helper function to collect new gallery cards that weren't in the original set
 function collectNewCards() {
-    const currentView = localStorage.getItem('viewMode') || 'list';
+    const currentView = 'gallery'; // Forced gallery mode
     if (currentView === 'gallery') {
         return Array.from(document.querySelectorAll('.gallery-item'));
     } else {
@@ -2245,7 +2375,7 @@ function loadAvailableDates() {
                     }
                 }
 
-                // Load content for the current date
+                // Load content for the current date with fallback to previous dates
                 if (currentDate) {
                     window.preloadSessionId = Date.now();
 
@@ -2256,13 +2386,61 @@ function loadAvailableDates() {
                     const currentSession = window.preloadSessionId;
                     const signal = window.currentPreloadController.signal;
 
-                    loadContentForDate(currentDate, false, () => {
-                        // After initial date is loaded, start loading remaining dates sequentially
-                        if (hasMoreDates && window.preloadSessionId === currentSession) {
-                            console.log('[Init] Initial content loaded, preloading next 3 days...');
-                            loadNextDate(3, currentSession);
+                    // Helper function to try loading dates until we find one with data
+                    const loadFirstAvailableDate = (dateIndex = currentDateIndex) => {
+                        if (dateIndex >= availableDates.length) {
+                            // No more dates to try
+                            console.log('[Init] No dates with data found');
+                            const contentList = document.getElementById('contentList');
+                            if (contentList) {
+                                contentList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">No content available</div>';
+                            }
+                            return;
                         }
-                    }, signal);
+
+                        const dateToTry = availableDates[dateIndex].date;
+                        console.log('[Init] Trying to load date:', dateToTry, 'index:', dateIndex);
+
+                        loadContentForDate(dateToTry, false, null, signal)
+                            .then(count => {
+                                if (count > 0) {
+                                    // Found data! Update current date and index
+                                    currentDate = dateToTry;
+                                    currentDateIndex = dateIndex;
+                                    loadedDates.add(currentDate);
+
+                                    // Update URL parameter to reflect the actual loaded date
+                                    const url = new URL(window.location);
+                                    url.searchParams.set('date', currentDate);
+                                    window.history.replaceState({}, '', url);
+
+                                    // Update UI to reflect the loaded date
+                                    selectDateTab(currentDate);
+                                    syncMobileNavSelection(currentDate);
+
+                                    console.log('[Init] Successfully loaded date:', currentDate, 'with', count, 'tweets');
+
+                                    // After initial date is loaded, start loading remaining dates sequentially
+                                    if (hasMoreDates && window.preloadSessionId === currentSession) {
+                                        console.log('[Init] Initial content loaded, preloading next 3 days...');
+                                        loadNextDate(3, currentSession);
+                                    }
+                                } else {
+                                    // No data for this date, try the next one (previous day)
+                                    console.log('[Init] No data for date:', dateToTry, 'trying next date...');
+                                    loadFirstAvailableDate(dateIndex + 1);
+                                }
+                            })
+                            .catch(error => {
+                                if (error.name !== 'AbortError') {
+                                    console.error('[Init] Error loading date:', dateToTry, error);
+                                    // Try next date on error
+                                    loadFirstAvailableDate(dateIndex + 1);
+                                }
+                            });
+                    };
+
+                    loadFirstAvailableDate();
                 }
             })
             .catch(error => {
@@ -2468,7 +2646,7 @@ function loadContentForDate(date, append = false, callback = null, signal = null
         contentList.innerHTML = '';
         emptyState.style.display = 'none';
         tweetUrls.length = 0;
-        
+
         // Clear all tweet observers to prevent memory leaks
         if (typeof tweetObserver !== 'undefined') {
             try {
@@ -2477,7 +2655,7 @@ function loadContentForDate(date, append = false, callback = null, signal = null
                 console.warn('Error disconnecting observer:', e);
             }
         }
-        
+
         // Clear any existing Twitter embeds to prevent conflicts
         if (window.twttr && window.twttr.widgets) {
             try {
@@ -2488,7 +2666,7 @@ function loadContentForDate(date, append = false, callback = null, signal = null
                 console.warn('Error removing existing tweets:', e);
             }
         }
-        
+
         // Show loading state
         contentList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading content...</div>';
         // tweetMediaCache.clear(); // Persistence: Don't clear cache aggressively anymore
@@ -2521,7 +2699,7 @@ function loadContentForDate(date, append = false, callback = null, signal = null
 
                 if (append) {
                     // Append mode: render only new content
-                    const currentView = localStorage.getItem('viewMode') || 'list';
+                    const currentView = 'gallery'; // Forced gallery mode
                     if (currentView === 'gallery') {
                         renderImageGallery(contentList, true, startIndex, date);
                     } else {
@@ -2537,7 +2715,7 @@ function loadContentForDate(date, append = false, callback = null, signal = null
                     }
                 } else {
                     // Initial mode: render all content
-                    renderContent(false);
+                    renderContent(false, date);
                     emptyState.style.display = 'none';
 
                     // Execute callback for sequential preloading even on initial load
@@ -2573,7 +2751,7 @@ function loadContentForDate(date, append = false, callback = null, signal = null
                         const reversedUrls = u.reverse();
                         tweetUrls.push(...reversedUrls);
                         if (append) {
-                            const currentView = localStorage.getItem('viewMode') || 'list';
+                            const currentView = 'gallery'; // Forced gallery mode
                             if (currentView === 'gallery') {
                                 renderImageGallery(contentList, true, startIndex, date);
                             } else {
@@ -2581,7 +2759,7 @@ function loadContentForDate(date, append = false, callback = null, signal = null
                             }
                             console.log('[Infinite Scroll] Content loaded from cache (error fallback) for', date);
                         } else {
-                            renderContent(false);
+                            renderContent(false, date);
                             emptyState.style.display = 'none';
                         }
                         showSourceToast('cache');
@@ -2675,16 +2853,16 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 // Wait for libraries to load
 async function waitForLibraries(timeout = 10000) {
     const startTime = Date.now();
-    
+
     // 首先检查库是否已经加载
     if (typeof html2canvas !== 'undefined' && typeof JSZip !== 'undefined') {
         return true;
     }
-    
+
     // 监听库加载完成的自定义事件
     return new Promise(resolve => {
         let resolved = false;
-        
+
         const librariesLoadedHandler = () => {
             if (!resolved) {
                 resolved = true;
@@ -2692,9 +2870,9 @@ async function waitForLibraries(timeout = 10000) {
                 resolve(true);
             }
         };
-        
+
         document.addEventListener('librariesLoaded', librariesLoadedHandler);
-        
+
         // 同时轮询检查全局变量（双重保险）
         const checkInterval = setInterval(() => {
             if (!resolved && typeof html2canvas !== 'undefined' && typeof JSZip !== 'undefined') {
@@ -2704,7 +2882,7 @@ async function waitForLibraries(timeout = 10000) {
                 resolve(true);
             }
         }, 200);
-        
+
         // 设置超时，以防事件永远不会触发
         setTimeout(() => {
             if (!resolved) {
@@ -2718,20 +2896,20 @@ async function waitForLibraries(timeout = 10000) {
 }
 
 // Test library loading function - can be called from console
-window.testLibraries = function() {
-    const html2canvasStatus = typeof html2canvas !== 'undefined' ? 
-        '✓ 已加载 (版本: ' + (html2canvas.version || '未知') + ')' : 
+window.testLibraries = function () {
+    const html2canvasStatus = typeof html2canvas !== 'undefined' ?
+        '✓ 已加载 (版本: ' + (html2canvas.version || '未知') + ')' :
         '✗ 未加载';
-    
-    const jszipStatus = typeof JSZip !== 'undefined' ? 
-        '✓ 已加载 (版本: ' + (JSZip.version || '未知') + ')' : 
+
+    const jszipStatus = typeof JSZip !== 'undefined' ?
+        '✓ 已加载 (版本: ' + (JSZip.version || '未知') + ')' :
         '✗ 未加载';
-    
+
     console.log('=== 库加载状态检查 ===');
     console.log('html2canvas:', html2canvasStatus);
     console.log('JSZip:', jszipStatus);
     console.log('window.librariesReady:', window.librariesReady ? '✓ 已就绪' : '✗ 未就绪');
-    
+
     return {
         html2canvas: typeof html2canvas !== 'undefined',
         jszip: typeof JSZip !== 'undefined',
@@ -2773,7 +2951,7 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
             `;
             msg.textContent = `html2canvas: ${status.html2canvas ? '✓' : '✗'}, JSZip: ${status.jszip ? '✓' : '✗'}`;
             document.body.appendChild(msg);
-            
+
             setTimeout(() => {
                 msg.remove();
             }, 3000);
@@ -2796,14 +2974,14 @@ async function downloadDayAsImage(button, container, dateLabel) {
 
     // Wait for libraries to load
     updateStatus('Checking libraries...');
-    
+
     // 首先直接检查全局变量，避免不必要的等待
     if (typeof html2canvas !== 'undefined' && typeof JSZip !== 'undefined') {
         updateStatus('Libraries already loaded');
     } else {
         // 如果库未加载，尝试等待或手动加载
         updateStatus('Loading required libraries...');
-        
+
         // 尝试手动加载库
         if (!window.librariesReady) {
             updateStatus('Attempting to load libraries...');
@@ -2811,11 +2989,11 @@ async function downloadDayAsImage(button, container, dateLabel) {
                 // 等待库加载或者超时
                 let checkCount = 0;
                 const maxChecks = 20; // 最多检查 20 次，每次间隔 500ms = 10 秒
-                
+
                 const checkInterval = setInterval(() => {
                     checkCount++;
-                    if ((typeof html2canvas !== 'undefined' && typeof JSZip !== 'undefined') || 
-                        window.librariesReady || 
+                    if ((typeof html2canvas !== 'undefined' && typeof JSZip !== 'undefined') ||
+                        window.librariesReady ||
                         checkCount >= maxChecks) {
                         clearInterval(checkInterval);
                         resolve();
@@ -2852,30 +3030,10 @@ async function downloadDayAsImage(button, container, dateLabel) {
         // --- Step 1: Capture Full Screenshot ---
         updateStatus('Capturing screenshot...');
 
-        // Pre-process: Convert all Twitter images to canvas-based data URLs to avoid CORS
-        const originalImages = container.querySelectorAll('img[src*="twimg.com"]');
-        const imageBackups = new Map();
-
-        for (const img of originalImages) {
-            if (img.complete && img.naturalWidth > 0) {
-                try {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.naturalWidth;
-                    canvas.height = img.naturalHeight;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0);
-                    const dataURL = canvas.toDataURL('image/jpeg', 0.9);
-                    imageBackups.set(img, { original: img.src, dataURL });
-                    img.src = dataURL; // Temporarily replace with data URL
-                } catch (e) {
-                    console.warn('Failed to convert image to data URL:', e);
-                }
-            }
-        }
-
+        // html2canvas configuration for cross-origin images
         const canvas = await html2canvas(container, {
-            useCORS: false,
-            allowTaint: true,
+            useCORS: true,
+            allowTaint: false, // Must be false to allow toBlob
             backgroundColor: getComputedStyle(document.body).backgroundColor,
             scale: 2,
             logging: false,
@@ -2888,95 +3046,105 @@ async function downloadDayAsImage(button, container, dateLabel) {
             }
         });
 
-        // Restore original image sources
-        for (const [img, backup] of imageBackups) {
-            img.src = backup.original;
-        }
-
         // Add screenshot to ZIP
-        const screenshotBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        if (screenshotBlob) {
-            folder.file(`${folderName}-Overview.png`, screenshotBlob);
+        try {
+            const screenshotBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            if (screenshotBlob) {
+                folder.file(`${folderName}-Overview.png`, screenshotBlob);
+            }
+        } catch (e) {
+            console.error('Failed to create screenshot blob:', e);
         }
 
         // --- Step 2: Download Individual Images ---
         updateStatus('Fetching individual images...');
 
-        // Find all tweet identifiers in this container
-        // Support both Masonry (.tweet-embed-container) and Gallery (.gallery-item)
-        const items = container.querySelectorAll('.tweet-embed-container, .gallery-item');
-        const uniqueTweetIds = new Set();
+        // Identify all tweets for this date
+        let targetTweetUrls = [];
 
-        items.forEach(item => {
-            const url = item.dataset.tweetUrl || (item.querySelector('.gallery-link-icon')?.href);
-            if (url) {
-                const id = extractTweetId(url);
-                if (id) uniqueTweetIds.add(id);
-            }
-        });
+        // Check if we are downloading the current view's date (assuming container is related to main content)
+        // We prioritize global tweetUrls if the container matches the main list, to get ALL tweets even if not lazy-loaded
+        if (container.id === 'contentList' || container.closest('#contentList') || container.classList.contains('day-section')) {
+            // Filter tweetUrls to only include those relevant to this date if possible, 
+            // but currently tweetUrls seems to hold the list for the "current loaded date".
+            // If multiple days are loaded (infinite scroll), we need to be careful.
+            // But usually the download button is per "day-section".
+            
+            // Safer approach: Extract URLs from the container's dataset or children, 
+            // BUT since we want *all* images even those not DOM-rendered (lazy load), 
+            // we should try to use the data if we can match it to the date.
+            
+            // For now, let's stick to the robust method of "what should be there".
+            // If we are in infinite scroll, `tweetUrls` might have mixed dates? 
+            // Looking at `loadContentForDate`, `tweetUrls` accumulates. 
+            // So we should filter `tweetUrls` by date if we have the date.
+            // `dateLabel` is passed in. It's formatted "MMM DD, YYYY".
+            // `tweetUrls` are just URLs. We don't have date info attached to them easily unless we check cache.
+            
+            // Let's use the DOM as the source of truth for *which tweets* belong to this section,
+            // but NOT for the image data itself.
+            // The container passed in is the `.day-section` or `.image-gallery-grid`.
+            // We can find all placeholder items there.
+            
+            const items = container.querySelectorAll('.tweet-embed-container, .gallery-item');
+            items.forEach(item => {
+                const url = item.dataset.tweetUrl || (item.querySelector('.gallery-link-icon')?.href);
+                if (url) targetTweetUrls.push(url);
+            });
+        }
+        
+        // Deduplicate
+        targetTweetUrls = [...new Set(targetTweetUrls)];
+        console.log(`[Download] Found ${targetTweetUrls.length} tweets to process`);
 
-        // Process images from DOM elements (avoid CORS issues)
-        const tweetIds = Array.from(uniqueTweetIds);
         let imageCount = 0;
 
-        // Helper function to convert img element to blob using canvas
-        const imgToBlob = (imgElement) => {
-            return new Promise((resolve, reject) => {
+        // Process tweets in batches
+        const BATCH_SIZE = 5;
+        for (let i = 0; i < targetTweetUrls.length; i += BATCH_SIZE) {
+            const batch = targetTweetUrls.slice(i, i + BATCH_SIZE);
+            await Promise.all(batch.map(async (url) => {
+                const tweetId = extractTweetId(url);
+                if (!tweetId) return;
+
                 try {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = imgElement.naturalWidth || imgElement.width;
-                    canvas.height = imgElement.naturalHeight || imgElement.height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(imgElement, 0, 0);
-                    canvas.toBlob((blob) => {
-                        if (blob) {
-                            resolve(blob);
-                        } else {
-                            reject(new Error('Canvas toBlob failed'));
+                    // Fetch media info (will use cache if available, or fetch from API)
+                    const { images } = await fetchTweetMedia(tweetId);
+                    if (!images || images.length === 0) return;
+
+                    // Download each image
+                    await Promise.all(images.map(async (mediaItem, idx) => {
+                        const imgUrl = typeof mediaItem === 'string' ? mediaItem : mediaItem.url;
+                        if (!imgUrl) return;
+
+                        try {
+                            const response = await fetch(imgUrl, { mode: 'cors' });
+                            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                            const blob = await response.blob();
+
+                            // Determine extension
+                            let ext = 'jpg';
+                            const contentType = response.headers.get('content-type');
+                            if (contentType) {
+                                if (contentType.includes('png')) ext = 'png';
+                                else if (contentType.includes('gif')) ext = 'gif';
+                                else if (contentType.includes('webp')) ext = 'webp';
+                            }
+
+                            const filename = `tweet_${tweetId}_${idx + 1}.${ext}`;
+                            folder.file(filename, blob);
+                            imageCount++;
+                        } catch (err) {
+                            console.warn(`Failed to download image ${imgUrl}:`, err);
                         }
-                    }, 'image/jpeg', 0.95);
+                    }));
                 } catch (e) {
-                    reject(e);
+                    console.warn(`Failed to process tweet ${tweetId}:`, e);
                 }
-            });
-        };
+            }));
+        }
 
-        const downloadPromises = tweetIds.map(async (tweetId) => {
-            try {
-                // Find images for this tweet in the DOM
-                const tweetItem = Array.from(items).find(item => {
-                    const url = item.dataset.tweetUrl || (item.querySelector('.gallery-link-icon')?.href);
-                    return url && extractTweetId(url) === tweetId;
-                });
-
-                if (!tweetItem) return;
-
-                // Get all img elements within this tweet
-                const imgElements = tweetItem.querySelectorAll('img.tweet-image, img.gallery-image');
-
-                await Promise.all(Array.from(imgElements).map(async (img, index) => {
-                    try {
-                        // Skip if image not loaded
-                        if (!img.complete || img.naturalWidth === 0) {
-                            console.warn(`Image not loaded for tweet ${tweetId}, index ${index}`);
-                            return;
-                        }
-
-                        const blob = await imgToBlob(img);
-                        const filename = `tweet_${tweetId}_${index + 1}.jpg`;
-                        folder.file(filename, blob);
-                        imageCount++;
-                    } catch (e) {
-                        console.warn(`Failed to process image for tweet ${tweetId}, index ${index}:`, e);
-                    }
-                }));
-
-            } catch (err) {
-                console.warn(`Error processing tweet ${tweetId}:`, err);
-            }
-        });
-
-        await Promise.all(downloadPromises);
+        updateStatus(`Added ${imageCount} images to zip`);
 
         // --- Step 3: Generate ZIP and Download ---
         updateStatus('Zipping...');
@@ -3022,7 +3190,7 @@ function loadCustomTweetCard(tweetId, container) {
 
     container.classList.add('loading');
     container.classList.remove('loaded');
-    
+
     const customCard = new window.CustomTweetCard(tweetId, container);
     customCard.load().then(() => {
         container.classList.add('loaded');
@@ -3031,7 +3199,7 @@ function loadCustomTweetCard(tweetId, container) {
         console.error('Custom tweet card failed:', error);
         container.classList.add('loaded');
         container.classList.remove('loading');
-        
+
         // Fallback to direct link
         container.innerHTML = `
             <div class="tweet-error" style="padding: 20px; text-align: center; color: var(--text-secondary);">
