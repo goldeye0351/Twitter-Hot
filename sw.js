@@ -1,5 +1,5 @@
-const CACHE_NAME = 'banana-hot-v8';
-const MEDIA_CACHE_NAME = 'banana-media-v8';
+const CACHE_NAME = 'banana-hot-v9';
+const MEDIA_CACHE_NAME = 'banana-media-v9';
 
 // Assets to cache immediately on install
 const PRE_CACHE_ASSETS = [
@@ -7,7 +7,9 @@ const PRE_CACHE_ASSETS = [
     '/index.html',
     '/styles.css',
     '/script.js',
-    '/tweet-detail-modal.js'
+    '/tweet-detail-modal.js',
+    '/libs/html2canvas.min.js',
+    '/libs/jszip.min.js'
     // External libraries will be cached on first request, not pre-cached
 ];
 

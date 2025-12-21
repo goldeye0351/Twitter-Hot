@@ -624,28 +624,29 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
                         return;
                     }
 
-                    // 简单纵向显示所有图片，添加淡入动画
-                    const imagesHTML = images.map((mediaItem, i) => {
-                        const imgUrl = typeof mediaItem === 'string' ? mediaItem : mediaItem.url;
-                        const mediaType = typeof mediaItem === 'object' ? mediaItem.type : 'image';
+                    // 始终只显示第一张图片（用户要求更快、更简洁）
+                    const mediaItem = images[0];
+                    const imgUrl = typeof mediaItem === 'string' ? mediaItem : mediaItem.url;
+                    const mediaType = typeof mediaItem === 'object' ? mediaItem.type : 'image';
+                    
+                    let mediaHTML;
 
-                        if (mediaType === 'video') {
-                            return `
-                                <div class="gallery-video-wrapper" style="position:relative;">
-                                    <img src="${imgUrl}" alt="Video thumbnail ${i + 1}" class="gallery-simple-img" style="opacity: 0;" crossOrigin="anonymous">
-                                    <div class="gallery-video-indicator" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;background:rgba(0,0,0,0.7);border-radius:50%;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);pointer-events:none;">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                                            <path d="M8 5v14l11-7z"/>
-                                        </svg>
-                                    </div>
+                    if (mediaType === 'video') {
+                        mediaHTML = `
+                            <div class="gallery-video-wrapper" style="position:relative;">
+                                <img src="${imgUrl}" alt="Video thumbnail" class="gallery-simple-img" style="opacity: 0;" crossOrigin="anonymous">
+                                <div class="gallery-video-indicator" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;background:rgba(0,0,0,0.7);border-radius:50%;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);pointer-events:none;">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                                        <path d="M8 5v14l11-7z"/>
+                                    </svg>
                                 </div>
-                            `;
-                        }
+                            </div>
+                        `;
+                    } else {
+                        mediaHTML = `<img src="${imgUrl}" alt="Tweet image" class="gallery-simple-img" style="opacity: 0;" crossOrigin="anonymous">`;
+                    }
 
-                        return `<img src="${imgUrl}" alt="Tweet image ${i + 1}" class="gallery-simple-img" style="opacity: 0;" crossOrigin="anonymous">`;
-                    }).join('');
-
-                    placeholder.innerHTML = imagesHTML;
+                    placeholder.innerHTML = mediaHTML;
 
                     // Sync data to dataset so modal can use it instantly without re-fetching
                     if (result && result.fullData) {
@@ -1699,79 +1700,7 @@ setTimeout(() => {
     retryFailedTweets();
 }, 10000); // 10 seconds after page load
 
-// Add a reload button to the page for manual retries
-document.addEventListener('DOMContentLoaded', function () {
-    // Check if reload button already exists
-    if (document.getElementById('reloadTweetsBtn')) return;
 
-    const reloadBtn = document.createElement('button');
-    reloadBtn.id = 'reloadTweetsBtn';
-    reloadBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M1 4v6h6"></path>
-            <path d="M23 20v-6h-6"></path>
-            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
-        </svg>
-        Reload Tweets
-    `;
-    reloadBtn.style.cssText = `
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background: var(--accent);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 10px 15px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        z-index: 1000;
-        font-family: inherit;
-        box-shadow: var(--shadow-md);
-        transition: all 0.2s ease;
-    `;
-
-    reloadBtn.addEventListener('mouseenter', () => {
-        reloadBtn.style.transform = 'translateY(-2px)';
-        reloadBtn.style.boxShadow = 'var(--shadow-lg)';
-    });
-
-    reloadBtn.addEventListener('mouseleave', () => {
-        reloadBtn.style.transform = 'translateY(0)';
-        reloadBtn.style.boxShadow = 'var(--shadow-md)';
-    });
-
-    reloadBtn.addEventListener('click', () => {
-        reloadBtn.disabled = true;
-        reloadBtn.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 4v6h6"></path>
-                <path d="M23 20v-6h-6"></path>
-                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
-            </svg>
-            Reloading...
-        `;
-
-        retryFailedTweets();
-        reloadAllTweetEmbeds();
-
-        setTimeout(() => {
-            reloadBtn.disabled = false;
-            reloadBtn.innerHTML = `
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M1 4v6h6"></path>
-                    <path d="M23 20v-6h-6"></path>
-                    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
-                </svg>
-                Reload Tweets
-            `;
-        }, 3000);
-    });
-
-    document.body.appendChild(reloadBtn);
-});
 
 // Global State
 const paramDate = urlParams.get('date');

@@ -215,7 +215,7 @@
                 
                 // 加载 html2canvas
                 loadScriptWithVerification(
-                    'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+                    'libs/html2canvas.min.js',
                     'html2canvas',
                     function() { 
                         html2canvasLoaded = true;
@@ -226,6 +226,7 @@
                         handleLibraryLoadError();
                     },
                     [
+                        'libs/html2canvas.min.js',
                         'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
                         'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js',
                         'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
@@ -234,7 +235,7 @@
                 
                 // 加载 JSZip
                 loadScriptWithVerification(
-                    'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+                    'libs/jszip.min.js',
                     'JSZip',
                     function() { 
                         jszipLoaded = true;
@@ -245,6 +246,7 @@
                         handleLibraryLoadError();
                     },
                     [
+                        'libs/jszip.min.js',
                         'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
                         'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js',
                         'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'

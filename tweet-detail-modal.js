@@ -180,12 +180,6 @@ function getTweetDataForIndex(index) {
 
 /**
  * Generate thumbnail HTML content
- * @param {Object} cardData - Tweet data
- * @param {string} loadingState - Loading state string
- * @returns {string} - HTML content
- */
-/**
- * Generate thumbnail HTML content
  * @param {Object} cardData - Tweet data (can be null)
  * @param {HTMLElement} card - The card element (optional, for accessing dataset)
  * @returns {string} - HTML content
@@ -205,9 +199,9 @@ function getThumbnailHtml(cardData, card = null) {
                 thumbUrl = firstMedia.url || firstMedia.media_url_https;
             }
 
-            return `<img src="${thumbUrl}" alt="Thumbnail" crossOrigin="anonymous">`;
+            return `<img src="${thumbUrl}" alt="Thumbnail" loading="lazy">`;
         } else if (cardData.mediaURLs && cardData.mediaURLs.length > 0) {
-            return `<img src="${cardData.mediaURLs[0]}" alt="Thumbnail" crossOrigin="anonymous">`;
+            return `<img src="${cardData.mediaURLs[0]}" alt="Thumbnail" loading="lazy">`;
         } else {
             return `<div class="thumbnail-item-placeholder">${(cardData.text || '').substring(0, 20)}</div>`;
         }

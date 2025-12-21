@@ -141,7 +141,7 @@ html.light-mode .thumbnail-strip {
 
 /* 缩略图未选中状态 */
 .thumbnail-item.unselected {
-    filter: grayscale(1);
+    /* filter: grayscale(1);  Removed per user request */
     opacity: 0.5;
 }
 
@@ -224,6 +224,11 @@ html.light-mode .thumbnail-strip {
     justify-content: space-between;
     background: rgba(17, 17, 17, 1);
     backdrop-filter: blur(10px);
+}
+
+html.light-mode .tweet-detail-header {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
 }
 
 .tweet-detail-user {

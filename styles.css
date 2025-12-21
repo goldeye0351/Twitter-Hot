@@ -805,7 +805,7 @@ body {
     vertical-align: bottom;
 }
 
-/* 简单纵向图片显示 */
+/* 简单纵向图片显示 - 仅用于单张图片或 fallback */
 .gallery-simple-img {
     width: 100%;
     display: block;
@@ -824,59 +824,91 @@ body {
     object-fit: cover;
 }
 
-.gallery-multi-imgs {
+/* 基础网格容器 */
+.gallery-grid-container {
     width: 100%;
     display: grid;
     gap: 2px;
+    background: transparent;
 }
 
-.gallery-imgs-2 {
+/* 2 张图：并排 */
+.gallery-grid-2 {
     grid-template-columns: 1fr 1fr;
+    aspect-ratio: 16/9; /* 限制整体比例 */
 }
 
-.gallery-imgs-2 img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    min-height: 150px;
+/* 3 张图：左大右小两张 */
+.gallery-grid-3 {
+    grid-template-columns: 1.5fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    aspect-ratio: 16/9;
 }
 
-.gallery-imgs-3 {
-    grid-template-columns: 2fr 1fr;
-    gap: 2px;
-}
-
-.gallery-imgs-3 .gallery-img-main {
+.gallery-grid-3 .gallery-img-item:first-child {
     grid-row: 1 / 3;
-    width: 100%;
+    grid-column: 1 / 2;
     height: 100%;
-    object-fit: cover;
-    min-height: 200px;
 }
 
-.gallery-imgs-3 .gallery-img-side {
-    display: grid;
-    gap: 2px;
-    grid-template-rows: 1fr 1fr;
+.gallery-grid-3 .gallery-img-item:nth-child(2) {
+    grid-row: 1 / 2;
+    grid-column: 2 / 3;
 }
 
-.gallery-imgs-3 .gallery-img-side img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    min-height: 98px;
+.gallery-grid-3 .gallery-img-item:nth-child(3) {
+    grid-row: 2 / 3;
+    grid-column: 2 / 3;
 }
 
-.gallery-imgs-grid {
+/* 4 张图：2x2 网格 */
+.gallery-grid-4 {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr 1fr;
+    aspect-ratio: 16/9;
 }
 
-.gallery-imgs-grid img {
+/* 图片项通用样式 */
+.gallery-img-item {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    min-height: 120px;
+    display: block;
+    min-height: 0; /* 防止 grid item 溢出 */
+}
+
+/* 视频容器 */
+.gallery-video-container {
+    position: relative;
+    width: 100%;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    background: #000;
+}
+
+.gallery-video-container img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.7;
+}
+
+.gallery-video-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 48px;
+    height: 48px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    color: white;
 }
 
 .gallery-item:hover .gallery-thumb img {
