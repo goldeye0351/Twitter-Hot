@@ -683,8 +683,9 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
                     }
                 })
                 .catch(() => {
-                    if (placeholder) {
-                        placeholder.innerHTML = '<div class="gallery-empty">Failed to load</div>';
+                    // Failed to load 这种说明帖子有问题了，优化体验：不展示这个卡片
+                    if (wrapper && wrapper.parentNode) {
+                        wrapper.remove();
                     }
                 });
         });

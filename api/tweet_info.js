@@ -33,11 +33,27 @@ module.exports = (req, res) => {
         });
 
         response.on('end', () => {
-            // Forward the status code and data
-            res.status(response.statusCode);
-            res.setHeader('Content-Type', 'application/json');
-            res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
-            res.send(data);
+            // Check content type or try to parse JSON
+            const contentType = response.headers['content-type'];
+            if (contentType && !contentType.includes('application/json')) {
+                 console.error('Upstream returned non-JSON content type:', contentType);
+                 res.status(502).json({ error: 'upstream_invalid_response', details: 'Upstream returned non-JSON' });
+                 return;
+            }
+
+            try {
+                // Verify it is valid JSON
+                JSON.parse(data);
+                
+                // Forward the status code and data
+                res.status(response.statusCode);
+                res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+                res.send(data);
+            } catch (e) {
+                console.error('Failed to parse upstream response as JSON:', data.substring(0, 100));
+                res.status(502).json({ error: 'upstream_invalid_json', details: 'Upstream returned invalid JSON' });
+            }
         });
     });
 

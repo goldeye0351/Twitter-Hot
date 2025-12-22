@@ -68,11 +68,25 @@ class Handler(SimpleHTTPRequestHandler):
                 
                 with urllib.request.urlopen(req) as response:
                     data = response.read()
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self.send_header('Cache-Control', 'public, max-age=3600') # Cache for 1 hour
-                    self.end_headers()
-                    self.wfile.write(data)
+                    
+                    # Check if response is valid JSON
+                    try:
+                        json.loads(data)
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'application/json')
+                        self.send_header('Cache-Control', 'public, max-age=3600') # Cache for 1 hour
+                        self.end_headers()
+                        self.wfile.write(data)
+                    except json.JSONDecodeError:
+                        print(f"Invalid JSON response from upstream for tweet {tweet_id}")
+                        self.send_response(502) # Bad Gateway
+                        self.end_headers()
+                        self.wfile.write(b'{"error":"upstream_invalid_json"}')
+            except urllib.error.HTTPError as e:
+                print(f"HTTP Error fetching tweet info: {e.code} {e.reason}")
+                self.send_response(e.code)
+                self.end_headers()
+                self.wfile.write(b'{"error":"upstream_error"}')
             except Exception as e:
                 print(f"Error fetching tweet info: {e}")
                 self.send_response(500)

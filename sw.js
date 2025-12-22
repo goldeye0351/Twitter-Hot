@@ -76,7 +76,16 @@ self.addEventListener('fetch', event => {
         event.respondWith(
             caches.open(MEDIA_CACHE_NAME).then(cache => {
                 return cache.match(event.request).then(response => {
-                    if (response) return response;
+                    // Check if we have a valid cached response
+                    if (response) {
+                        // If request requires CORS but cached response is opaque, ignore cache
+                        // This prevents "opaque response ... not no-cors" errors
+                        if (event.request.mode === 'cors' && response.type === 'opaque') {
+                            // Fall through to network to get a fresh CORS response
+                        } else {
+                            return response;
+                        }
+                    }
 
                     return fetch(event.request).then(networkResponse => {
                         // Cache opaque responses (for cross-origin images)
