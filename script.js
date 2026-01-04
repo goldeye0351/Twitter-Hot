@@ -1,4 +1,15 @@
 // Extract tweet ID from URL
+const contentData = [
+    {
+        rank: 1,
+        author: "用户名",
+        description: "推文描述",
+        likes: 点赞数,
+        views: "浏览量",
+        url: "推文链接"
+    }
+];
+
 function extractTweetId(url) {
     const match = url.match(/status\/(\d+)/);
     return match ? match[1] : null;
@@ -373,7 +384,7 @@ function renderTweetList(container, append = false, startIndex = 0, dateLabel = 
     // If appending, start with current DOM heights. If new, start with 0.
     const virtualColumnHeights = columns.map(col => col.offsetHeight || 0);
     // Estimated height for a tweet card (used for distribution logic)
-    const ESTIMATED_CARD_HEIGHT = 300; 
+    const ESTIMATED_CARD_HEIGHT = 300;
 
     // Helper to get next target column index
     const getNextTargetColumn = () => {
@@ -400,7 +411,7 @@ function renderTweetList(container, append = false, startIndex = 0, dateLabel = 
         const actualIndex = startIndex + index;
         // 只给前3个保留微小延迟增加动画感
         const delay = index < 3 ? index * 15 : 0;
-        const targetColumn = getNextTargetColumn(); 
+        const targetColumn = getNextTargetColumn();
 
         setTimeout(() => {
             renderTweetCard(url, actualIndex, targetColumn);
@@ -628,7 +639,7 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
                     const mediaItem = images[0];
                     const imgUrl = typeof mediaItem === 'string' ? mediaItem : mediaItem.url;
                     const mediaType = typeof mediaItem === 'object' ? mediaItem.type : 'image';
-                    
+
                     let mediaHTML;
 
                     if (mediaType === 'video') {
@@ -709,7 +720,7 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
     // If appending, start with current DOM heights. If new, start with 0.
     const virtualColumnHeights = columns.map(col => col.offsetHeight || 0);
     // Estimated height for a gallery item (thumb placeholder + icons)
-    const ESTIMATED_GALLERY_ITEM_HEIGHT = 200; 
+    const ESTIMATED_GALLERY_ITEM_HEIGHT = 200;
 
     // Helper to get next target column index (Shortest column first)
     const getNextTargetColumn = () => {
@@ -838,7 +849,7 @@ function renderImageGallery(container, append = false, startIndex = 0, dateLabel
     visibleItems.forEach((url, index) => {
         const tweetIndex = startIndex + index;
         const delay = index < 4 ? index * 10 : 0; // 前4个有小延迟
-        const targetColumn = getNextTargetColumn(); 
+        const targetColumn = getNextTargetColumn();
         renderGalleryItem(url, tweetIndex, targetColumn, delay);
     });
 
@@ -3008,30 +3019,30 @@ async function downloadDayAsImage(button, container, dateLabel) {
             // but currently tweetUrls seems to hold the list for the "current loaded date".
             // If multiple days are loaded (infinite scroll), we need to be careful.
             // But usually the download button is per "day-section".
-            
+
             // Safer approach: Extract URLs from the container's dataset or children, 
             // BUT since we want *all* images even those not DOM-rendered (lazy load), 
             // we should try to use the data if we can match it to the date.
-            
+
             // For now, let's stick to the robust method of "what should be there".
             // If we are in infinite scroll, `tweetUrls` might have mixed dates? 
             // Looking at `loadContentForDate`, `tweetUrls` accumulates. 
             // So we should filter `tweetUrls` by date if we have the date.
             // `dateLabel` is passed in. It's formatted "MMM DD, YYYY".
             // `tweetUrls` are just URLs. We don't have date info attached to them easily unless we check cache.
-            
+
             // Let's use the DOM as the source of truth for *which tweets* belong to this section,
             // but NOT for the image data itself.
             // The container passed in is the `.day-section` or `.image-gallery-grid`.
             // We can find all placeholder items there.
-            
+
             const items = container.querySelectorAll('.tweet-embed-container, .gallery-item');
             items.forEach(item => {
                 const url = item.dataset.tweetUrl || (item.querySelector('.gallery-link-icon')?.href);
                 if (url) targetTweetUrls.push(url);
             });
         }
-        
+
         // Deduplicate
         targetTweetUrls = [...new Set(targetTweetUrls)];
         console.log(`[Download] Found ${targetTweetUrls.length} tweets to process`);
