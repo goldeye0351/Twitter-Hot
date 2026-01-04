@@ -4,9 +4,9 @@ const contentData = [
         rank: 1,
         author: "用户名",
         description: "推文描述",
-        likes: 点赞数,
-        views: "浏览量",
-        url: "推文链接"
+        likes: 1,
+        views: "222",
+        url: "https://x.com/Gdgtify/status/2007089501416427844"
     }
 ];
 
